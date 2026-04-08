@@ -1,7 +1,7 @@
 #ifndef STORAGE_H
 #define STORAGE_H
 
-#include "hard_parser.h"
+#include "parser.h"
 
 typedef struct {
     int row_count;

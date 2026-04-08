@@ -1,6 +1,6 @@
 #include "executor.h"
-#include "hard_parser.h"
-#include "soft_parser.h"
+#include "parser.h"
+#include "tokenizer.h"
 #include "utils.h"
 
 #include <ctype.h>
@@ -45,14 +45,14 @@ static int main_process_sql_statement(const char *sql) {
         return SUCCESS;
     }
 
-    tokens = soft_parse(working_sql, &token_count);
+    tokens = tokenizer_tokenize(working_sql, &token_count);
     if (tokens == NULL || token_count == 0) {
         free(tokens);
         free(working_sql);
         return FAILURE;
     }
 
-    status = hard_parse(tokens, token_count, &statement);
+    status = parser_parse(tokens, token_count, &statement);
     if (status == SUCCESS) {
         status = executor_execute(&statement);
     }
@@ -249,6 +249,6 @@ int main(int argc, char *argv[]) {
         status = main_run_repl_mode();
     }
 
-    soft_parser_cleanup_cache();
+    tokenizer_cleanup_cache();
     return status == SUCCESS ? EXIT_SUCCESS : EXIT_FAILURE;
 }

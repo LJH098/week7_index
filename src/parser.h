@@ -1,7 +1,7 @@
-#ifndef HARD_PARSER_H
-#define HARD_PARSER_H
+#ifndef PARSER_H
+#define PARSER_H
 
-#include "soft_parser.h"
+#include "tokenizer.h"
 
 typedef enum {
     SQL_INSERT,
@@ -49,6 +49,6 @@ typedef struct {
  * 토큰 배열을 구조화된 SQL 문 구조체로 파싱한다.
  * 성공 시 SUCCESS, 문법 오류 시 FAILURE를 반환한다.
  */
-int hard_parse(const Token *tokens, int token_count, SqlStatement *out);
+int parser_parse(const Token *tokens, int token_count, SqlStatement *out);
 
 #endif
