@@ -1,0 +1,68 @@
+#include "hard_parser.h"
+#include "soft_parser.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static int assert_true(int condition, const char *message) {
+    if (!condition) {
+        fprintf(stderr, "[FAIL] %s\n", message);
+        return FAILURE;
+    }
+    return SUCCESS;
+}
+
+int main(void) {
+    Token *tokens;
+    int token_count;
+    SqlStatement statement;
+
+    tokens = soft_parse(
+        "INSERT INTO users (id, name, age) VALUES (1, 'Alice', 30);",
+        &token_count);
+    if (tokens == NULL) {
+        return EXIT_FAILURE;
+    }
+
+    if (assert_true(hard_parse(tokens, token_count, &statement) == SUCCESS,
+                    "hard_parse should parse INSERT") != SUCCESS ||
+        assert_true(statement.type == SQL_INSERT, "statement type should be INSERT") != SUCCESS ||
+        assert_true(strcmp(statement.insert.table_name, "users") == 0,
+                    "table name should be users") != SUCCESS ||
+        assert_true(statement.insert.column_count == 3,
+                    "INSERT column count should be 3") != SUCCESS ||
+        assert_true(strcmp(statement.insert.values[1], "Alice") == 0,
+                    "INSERT value should keep string literal") != SUCCESS) {
+        free(tokens);
+        return EXIT_FAILURE;
+    }
+    free(tokens);
+
+    tokens = soft_parse(
+        "SELECT name, age FROM users WHERE age >= 27;",
+        &token_count);
+    if (tokens == NULL) {
+        return EXIT_FAILURE;
+    }
+
+    if (assert_true(hard_parse(tokens, token_count, &statement) == SUCCESS,
+                    "hard_parse should parse SELECT") != SUCCESS ||
+        assert_true(statement.type == SQL_SELECT, "statement type should be SELECT") != SUCCESS ||
+        assert_true(statement.select.column_count == 2,
+                    "SELECT column count should be 2") != SUCCESS ||
+        assert_true(statement.select.has_where == 1, "WHERE should be parsed") != SUCCESS ||
+        assert_true(strcmp(statement.select.where.column, "age") == 0,
+                    "WHERE column should be age") != SUCCESS ||
+        assert_true(strcmp(statement.select.where.op, ">=") == 0,
+                    "WHERE operator should be >=") != SUCCESS ||
+        assert_true(strcmp(statement.select.where.value, "27") == 0,
+                    "WHERE value should be 27") != SUCCESS) {
+        free(tokens);
+        return EXIT_FAILURE;
+    }
+    free(tokens);
+
+    puts("[PASS] hard parser");
+    return EXIT_SUCCESS;
+}
