@@ -48,6 +48,12 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
+    prepare_insert(&stmt, "storage_users", "2", "Duplicate", "40");
+    if (assert_true(storage_insert("storage_users", &stmt) == FAILURE,
+                    "storage_insert should reject duplicate id values") != SUCCESS) {
+        return EXIT_FAILURE;
+    }
+
     if (assert_true(storage_get_columns("storage_users", columns, &col_count) == SUCCESS,
                     "storage_get_columns should read header") != SUCCESS ||
         assert_true(col_count == 3, "header column count should be 3") != SUCCESS ||
@@ -57,7 +63,7 @@ int main(void) {
 
     rows = storage_select("storage_users", &row_count, &col_count);
     if (assert_true(rows != NULL, "storage_select should read rows") != SUCCESS ||
-        assert_true(row_count == 2, "row count should be 2") != SUCCESS ||
+        assert_true(row_count == 2, "row count should stay 2 after duplicate reject") != SUCCESS ||
         assert_true(strcmp(rows[1][1], "Lee, Jr.") == 0,
                     "CSV parser should preserve commas in strings") != SUCCESS) {
         storage_free_rows(rows, row_count, col_count);

@@ -1,4 +1,8 @@
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#else
 #define _POSIX_C_SOURCE 200809L
+#endif
 
 #include "storage.h"
 
@@ -8,6 +12,7 @@
 #include <string.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 static int storage_ensure_data_dir(void) {
     struct stat info;
@@ -252,6 +257,80 @@ static int storage_copy_columns(char columns[][MAX_IDENTIFIER_LEN], int col_coun
             fprintf(stderr, "Error: Column name is too long.\n");
             return FAILURE;
         }
+    }
+
+    return SUCCESS;
+}
+
+static int storage_find_column_index(const char columns[][MAX_IDENTIFIER_LEN],
+                                     int col_count, const char *target) {
+    int i;
+
+    if (columns == NULL || target == NULL) {
+        return FAILURE;
+    }
+
+    for (i = 0; i < col_count; i++) {
+        if (utils_equals_ignore_case(columns[i], target)) {
+            return i;
+        }
+    }
+
+    return FAILURE;
+}
+
+static int storage_validate_primary_key(FILE *fp, const char *table_name,
+                                        const char columns[][MAX_IDENTIFIER_LEN],
+                                        int col_count,
+                                        const char *ordered_values[]) {
+    int id_index;
+    char line[MAX_CSV_LINE_LENGTH];
+    char **parsed_fields;
+    int parsed_count;
+
+    if (fp == NULL || table_name == NULL || columns == NULL || ordered_values == NULL) {
+        return FAILURE;
+    }
+
+    id_index = storage_find_column_index(columns, col_count, "id");
+    if (id_index == FAILURE) {
+        return SUCCESS;
+    }
+
+    if (ordered_values[id_index] == NULL || ordered_values[id_index][0] == '\0') {
+        fprintf(stderr, "Error: Primary key column 'id' cannot be empty.\n");
+        return FAILURE;
+    }
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        if (strchr(line, '\n') == NULL && !feof(fp)) {
+            fprintf(stderr, "Error: CSV row is too long.\n");
+            return FAILURE;
+        }
+
+        if (line[0] == '\n' || line[0] == '\r') {
+            continue;
+        }
+
+        if (storage_parse_csv_line(line, &parsed_fields, &parsed_count) != SUCCESS) {
+            return FAILURE;
+        }
+
+        if (parsed_count != col_count) {
+            fprintf(stderr, "Error: Corrupted row in table '%s'.\n", table_name);
+            storage_free_field_list(parsed_fields, parsed_count);
+            return FAILURE;
+        }
+
+        if (strcmp(parsed_fields[id_index], ordered_values[id_index]) == 0) {
+            fprintf(stderr,
+                    "Error: Duplicate primary key value '%s' for column 'id'.\n",
+                    ordered_values[id_index]);
+            storage_free_field_list(parsed_fields, parsed_count);
+            return FAILURE;
+        }
+
+        storage_free_field_list(parsed_fields, parsed_count);
     }
 
     return SUCCESS;
@@ -561,6 +640,13 @@ int storage_insert(const char *table_name, const InsertStatement *stmt) {
             ordered_values[i] = stmt->values[i];
         }
 
+        if (storage_validate_primary_key(fp, table_name, stmt->columns,
+                                         stmt->column_count, ordered_values) != SUCCESS) {
+            flock(fileno(fp), LOCK_UN);
+            fclose(fp);
+            return FAILURE;
+        }
+
         rewind(fp);
         if (storage_write_csv_row(fp, header_values, stmt->column_count) != SUCCESS ||
             storage_write_csv_row(fp, ordered_values, stmt->column_count) != SUCCESS) {
@@ -596,6 +682,13 @@ int storage_insert(const char *table_name, const InsertStatement *stmt) {
             }
 
             ordered_values[i] = stmt->values[match_index];
+        }
+
+        if (storage_validate_primary_key(fp, table_name, existing_columns,
+                                         existing_count, ordered_values) != SUCCESS) {
+            flock(fileno(fp), LOCK_UN);
+            fclose(fp);
+            return FAILURE;
         }
 
         if (fseek(fp, 0, SEEK_END) != 0) {

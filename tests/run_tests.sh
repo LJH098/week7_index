@@ -48,6 +48,7 @@ run_sql_test "Basic INSERT" "tests/test_cases/basic_insert.sql" "1 row inserted 
 run_sql_test "Basic SELECT" "tests/test_cases/basic_select.sql" "Alice"
 run_sql_test "WHERE equals" "tests/test_cases/select_where.sql" "Bob"
 run_sql_test "Edge cases" "tests/test_cases/edge_cases.sql" "Lee, Jr."
+run_sql_test "Duplicate primary key" "tests/test_cases/duplicate_primary_key.sql" "Duplicate primary key value"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
