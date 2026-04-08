@@ -65,6 +65,10 @@ flowchart TD
     R --> S["N rows deleted 출력"]
 ```
 
+## 수요 코딩회 작업 비중
+<img width="666" height="448" alt="image" src="https://github.com/user-attachments/assets/802587bc-2688-45fe-a258-80c2f3112552" />
+
+
 ## 최적화 요약
 
 | 항목 |  설명 |
