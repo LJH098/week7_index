@@ -6,6 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Duplicate a C string into newly allocated memory.
+ * Caller owns the returned string.
+ */
 char *utils_strdup(const char *src) {
     size_t length;
     char *copy;
@@ -25,6 +29,10 @@ char *utils_strdup(const char *src) {
     return copy;
 }
 
+/*
+ * Copy src into dest with truncation detection.
+ * Returns SUCCESS only when the full string fits in dest.
+ */
 int utils_safe_strcpy(char *dest, size_t dest_size, const char *src) {
     int written;
 
@@ -40,6 +48,9 @@ int utils_safe_strcpy(char *dest, size_t dest_size, const char *src) {
     return SUCCESS;
 }
 
+/*
+ * Trim leading and trailing ASCII whitespace in place.
+ */
 void utils_trim(char *text) {
     size_t length;
     size_t start;
@@ -64,6 +75,9 @@ void utils_trim(char *text) {
     }
 }
 
+/*
+ * Copy src into dest while converting alphabetic characters to uppercase.
+ */
 int utils_to_upper_copy(const char *src, char *dest, size_t dest_size) {
     size_t i;
 
@@ -82,6 +96,10 @@ int utils_to_upper_copy(const char *src, char *dest, size_t dest_size) {
     return SUCCESS;
 }
 
+/*
+ * Compare two strings without case sensitivity.
+ * Returns 1 on equality, otherwise 0.
+ */
 int utils_equals_ignore_case(const char *lhs, const char *rhs) {
     size_t i;
 
@@ -99,6 +117,9 @@ int utils_equals_ignore_case(const char *lhs, const char *rhs) {
     return lhs[i] == '\0' && rhs[i] == '\0';
 }
 
+/*
+ * Return 1 when text matches one of the supported SQL keywords.
+ */
 int utils_is_sql_keyword(const char *text) {
     static const char *keywords[] = {
         "INSERT", "SELECT", "DELETE", "INTO", "FROM", "WHERE", "VALUES"
@@ -118,6 +139,9 @@ int utils_is_sql_keyword(const char *text) {
     return 0;
 }
 
+/*
+ * Return 1 when text is a valid signed integer literal.
+ */
 int utils_is_integer(const char *text) {
     size_t i;
 
@@ -142,10 +166,16 @@ int utils_is_integer(const char *text) {
     return 1;
 }
 
+/*
+ * Convert a validated integer string into a numeric value.
+ */
 long long utils_parse_integer(const char *text) {
     return strtoll(text, NULL, 10);
 }
 
+/*
+ * Compare SQL values numerically when both sides are integers, otherwise as text.
+ */
 int utils_compare_values(const char *lhs, const char *rhs) {
     long long left_number;
     long long right_number;
@@ -170,6 +200,10 @@ int utils_compare_values(const char *lhs, const char *rhs) {
     return strcmp(lhs, rhs);
 }
 
+/*
+ * Read an entire text file into memory and null-terminate the buffer.
+ * Caller owns the returned buffer.
+ */
 char *utils_read_file(const char *path) {
     FILE *fp;
     long file_size;
@@ -225,6 +259,10 @@ char *utils_read_file(const char *path) {
     return buffer;
 }
 
+/*
+ * Append suffix to a dynamically sized text buffer.
+ * On success the caller keeps ownership of the updated buffer.
+ */
 int utils_append_buffer(char **buffer, size_t *length, size_t *capacity,
                         const char *suffix) {
     size_t suffix_length;
@@ -270,6 +308,10 @@ int utils_append_buffer(char **buffer, size_t *length, size_t *capacity,
     return SUCCESS;
 }
 
+/*
+ * Find the next semicolon that is not inside a single-quoted string literal.
+ * Returns the index of the terminator or FAILURE when none exists.
+ */
 int utils_find_statement_terminator(const char *text, size_t start_index) {
     int in_quotes;
     size_t i;
@@ -297,10 +339,17 @@ int utils_find_statement_terminator(const char *text, size_t start_index) {
     return FAILURE;
 }
 
+/*
+ * Return 1 when text already contains a complete SQL statement terminator.
+ */
 int utils_has_statement_terminator(const char *text) {
     return utils_find_statement_terminator(text, 0) != FAILURE;
 }
 
+/*
+ * Copy a substring into newly allocated memory.
+ * Caller owns the returned string.
+ */
 char *utils_substring(const char *text, size_t start, size_t length) {
     char *copy;
 
@@ -319,6 +368,9 @@ char *utils_substring(const char *text, size_t start, size_t length) {
     return copy;
 }
 
+/*
+ * Decode one UTF-8 code point and report both width and byte count.
+ */
 static int utils_utf8_decode(const unsigned char *text, size_t *consumed,
                              unsigned int *codepoint) {
     unsigned char first;
@@ -383,6 +435,9 @@ static int utils_utf8_decode(const unsigned char *text, size_t *consumed,
     return FAILURE;
 }
 
+/*
+ * Return 1 for combining marks that do not occupy their own terminal cell.
+ */
 static int utils_is_zero_width_codepoint(unsigned int codepoint) {
     return
         (codepoint >= 0x0300U && codepoint <= 0x036FU) ||
@@ -392,6 +447,9 @@ static int utils_is_zero_width_codepoint(unsigned int codepoint) {
         (codepoint >= 0xFE20U && codepoint <= 0xFE2FU);
 }
 
+/*
+ * Return 1 for code points typically rendered as double-width in terminals.
+ */
 static int utils_is_wide_codepoint(unsigned int codepoint) {
     return
         codepoint == 0x2329U || codepoint == 0x232AU ||
@@ -409,6 +467,9 @@ static int utils_is_wide_codepoint(unsigned int codepoint) {
           (codepoint >= 0x20000U && codepoint <= 0x3FFFD)));
 }
 
+/*
+ * Estimate the terminal display width of a UTF-8 string.
+ */
 int utils_display_width(const char *text) {
     const unsigned char *cursor;
     size_t consumed;
@@ -446,6 +507,9 @@ int utils_display_width(const char *text) {
     return width;
 }
 
+/*
+ * Print text followed by spaces until it reaches target_width display cells.
+ */
 void utils_print_padded(FILE *stream, const char *text, int target_width) {
     int current_width;
     int i;

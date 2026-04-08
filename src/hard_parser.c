@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
+/*
+ * Check whether one token matches the expected type and optional text value.
+ * Returns 1 for a match, otherwise 0.
+ */
 static int hard_parser_is_token(const Token *tokens, int token_count, int index,
                                 TokenType type, const char *value) {
     if (tokens == NULL || index < 0 || index >= token_count) {
@@ -20,10 +24,17 @@ static int hard_parser_is_token(const Token *tokens, int token_count, int index,
     return strcmp(tokens[index].value, value) == 0;
 }
 
+/*
+ * Print one parser error message to stderr.
+ */
 static void hard_parser_print_error(const char *message) {
     fprintf(stderr, "Error: %s\n", message);
 }
 
+/*
+ * Consume one required keyword token and advance the parser cursor.
+ * Returns SUCCESS on match, otherwise FAILURE.
+ */
 static int hard_parser_expect_keyword(const Token *tokens, int token_count,
                                       int *index, const char *keyword) {
     if (!hard_parser_is_token(tokens, token_count, *index, TOKEN_KEYWORD, keyword)) {
@@ -35,6 +46,10 @@ static int hard_parser_expect_keyword(const Token *tokens, int token_count,
     return SUCCESS;
 }
 
+/*
+ * Consume one required identifier token and copy it into dest.
+ * Returns SUCCESS on match, otherwise FAILURE.
+ */
 static int hard_parser_expect_identifier(const Token *tokens, int token_count,
                                          int *index, char *dest, size_t dest_size) {
     if (!hard_parser_is_token(tokens, token_count, *index, TOKEN_IDENTIFIER, NULL)) {
@@ -51,6 +66,10 @@ static int hard_parser_expect_identifier(const Token *tokens, int token_count,
     return SUCCESS;
 }
 
+/*
+ * Consume one integer or string literal token and copy its text into dest.
+ * Returns SUCCESS on match, otherwise FAILURE.
+ */
 static int hard_parser_expect_literal(const Token *tokens, int token_count,
                                       int *index, char *dest, size_t dest_size) {
     TokenType type;
@@ -79,6 +98,9 @@ static int hard_parser_expect_literal(const Token *tokens, int token_count,
     return SUCCESS;
 }
 
+/*
+ * Consume an optional trailing semicolon and reject any extra tokens after it.
+ */
 static int hard_parser_consume_optional_semicolon(const Token *tokens,
                                                   int token_count, int *index) {
     if (hard_parser_is_token(tokens, token_count, *index, TOKEN_SEMICOLON, ";")) {
@@ -93,6 +115,9 @@ static int hard_parser_consume_optional_semicolon(const Token *tokens,
     return SUCCESS;
 }
 
+/*
+ * Parse an INSERT token stream into the InsertStatement union member.
+ */
 static int hard_parser_parse_insert(const Token *tokens, int token_count,
                                     SqlStatement *out) {
     int index;
@@ -190,6 +215,9 @@ static int hard_parser_parse_insert(const Token *tokens, int token_count,
     return hard_parser_consume_optional_semicolon(tokens, token_count, &index);
 }
 
+/*
+ * Parse the SELECT column list, including the SELECT * shorthand.
+ */
 static int hard_parser_parse_select_columns(const Token *tokens, int token_count,
                                             int *index, SelectStatement *stmt) {
     if (hard_parser_is_token(tokens, token_count, *index, TOKEN_IDENTIFIER, "*")) {
@@ -221,6 +249,9 @@ static int hard_parser_parse_select_columns(const Token *tokens, int token_count
     return SUCCESS;
 }
 
+/*
+ * Parse one single-condition WHERE clause into the destination structure.
+ */
 static int hard_parser_parse_where(const Token *tokens, int token_count, int *index,
                                    WhereClause *where) {
     if (hard_parser_expect_identifier(tokens, token_count, index,
@@ -250,6 +281,9 @@ static int hard_parser_parse_where(const Token *tokens, int token_count, int *in
     return SUCCESS;
 }
 
+/*
+ * Parse a SELECT token stream into the SelectStatement union member.
+ */
 static int hard_parser_parse_select(const Token *tokens, int token_count,
                                     SqlStatement *out) {
     int index;
@@ -289,6 +323,9 @@ static int hard_parser_parse_select(const Token *tokens, int token_count,
     return hard_parser_consume_optional_semicolon(tokens, token_count, &index);
 }
 
+/*
+ * Parse a DELETE token stream into the DeleteStatement union member.
+ */
 static int hard_parser_parse_delete(const Token *tokens, int token_count,
                                     SqlStatement *out) {
     int index;
@@ -320,6 +357,10 @@ static int hard_parser_parse_delete(const Token *tokens, int token_count,
     return hard_parser_consume_optional_semicolon(tokens, token_count, &index);
 }
 
+/*
+ * Dispatch token parsing based on the first SQL keyword.
+ * Returns SUCCESS when out is filled with a valid statement.
+ */
 int hard_parse(const Token *tokens, int token_count, SqlStatement *out) {
     if (tokens == NULL || token_count <= 0 || out == NULL) {
         hard_parser_print_error("Empty SQL statement.");

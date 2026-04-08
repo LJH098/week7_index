@@ -18,6 +18,9 @@ static SoftParserCacheEntry *soft_parser_cache_head = NULL;
 static int soft_parser_cache_entry_count = 0;
 static int soft_parser_cache_hit_count = 0;
 
+/*
+ * Free one cached SQL entry and all memory it owns.
+ */
 static void soft_parser_free_cache_entry(SoftParserCacheEntry *entry) {
     if (entry == NULL) {
         return;
@@ -28,6 +31,10 @@ static void soft_parser_free_cache_entry(SoftParserCacheEntry *entry) {
     free(entry);
 }
 
+/*
+ * Duplicate a token array so cache ownership and caller ownership stay separate.
+ * Caller owns the returned array.
+ */
 static Token *soft_parser_clone_tokens(const Token *tokens, int token_count) {
     Token *copy;
 
@@ -45,6 +52,9 @@ static Token *soft_parser_clone_tokens(const Token *tokens, int token_count) {
     return copy;
 }
 
+/*
+ * Evict the least recently used cache entry when the cache exceeds its limit.
+ */
 static void soft_parser_evict_oldest_cache_entry(void) {
     SoftParserCacheEntry *previous;
     SoftParserCacheEntry *entry;
@@ -70,6 +80,10 @@ static void soft_parser_evict_oldest_cache_entry(void) {
     soft_parser_cache_entry_count--;
 }
 
+/*
+ * Look up a normalized SQL string in the parser cache.
+ * Caller owns the returned token clone on success.
+ */
 static Token *soft_parser_lookup_cache(const char *sql, int *token_count) {
     SoftParserCacheEntry *entry;
     SoftParserCacheEntry *previous;
@@ -106,6 +120,10 @@ static Token *soft_parser_lookup_cache(const char *sql, int *token_count) {
     return NULL;
 }
 
+/*
+ * Store one parsed SQL statement in the internal cache.
+ * Cache insertion is best-effort and does not transfer caller ownership.
+ */
 static int soft_parser_store_cache(const char *sql, const Token *tokens,
                                    int token_count) {
     SoftParserCacheEntry *entry;
@@ -145,6 +163,10 @@ static int soft_parser_store_cache(const char *sql, const Token *tokens,
     return SUCCESS;
 }
 
+/*
+ * Append one token to the growing token array.
+ * Returns SUCCESS when the token is stored in tokens.
+ */
 static int soft_parser_append_token(Token **tokens, int *count, int *capacity,
                                     TokenType type, const char *value) {
     Token *new_tokens;
@@ -181,6 +203,10 @@ static int soft_parser_append_token(Token **tokens, int *count, int *capacity,
     return SUCCESS;
 }
 
+/*
+ * Read one identifier or keyword candidate starting at index.
+ * On success index advances past the consumed characters.
+ */
 static int soft_parser_read_word(const char *sql, size_t *index, char *buffer,
                                  size_t buffer_size) {
     size_t length;
@@ -198,6 +224,10 @@ static int soft_parser_read_word(const char *sql, size_t *index, char *buffer,
     return SUCCESS;
 }
 
+/*
+ * Read one single-quoted SQL string literal without surrounding quotes.
+ * Supports doubled single quotes inside the literal.
+ */
 static int soft_parser_read_string(const char *sql, size_t *index, char *buffer,
                                    size_t buffer_size) {
     size_t length;
@@ -230,6 +260,9 @@ static int soft_parser_read_string(const char *sql, size_t *index, char *buffer,
     return FAILURE;
 }
 
+/*
+ * Read one signed integer literal and copy its text into buffer.
+ */
 static int soft_parser_read_number(const char *sql, size_t *index, char *buffer,
                                    size_t buffer_size) {
     size_t length;
@@ -255,6 +288,9 @@ static int soft_parser_read_number(const char *sql, size_t *index, char *buffer,
     return SUCCESS;
 }
 
+/*
+ * Return 1 when sql[index] begins an integer literal, otherwise 0.
+ */
 static int soft_parser_is_numeric_start(const char *sql, size_t index) {
     if (isdigit((unsigned char)sql[index])) {
         return 1;
@@ -268,6 +304,10 @@ static int soft_parser_is_numeric_start(const char *sql, size_t index) {
     return 0;
 }
 
+/*
+ * Tokenize one already-trimmed SQL statement into a new token array.
+ * Caller owns the returned array.
+ */
 static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
     Token *tokens;
     int count;
@@ -436,6 +476,10 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
     return tokens;
 }
 
+/*
+ * Normalize one SQL statement, reuse cached tokens when possible, and return
+ * a caller-owned token array.
+ */
 Token *soft_parse(const char *sql, int *token_count) {
     char *working_sql;
     Token *tokens;
@@ -478,6 +522,9 @@ Token *soft_parse(const char *sql, int *token_count) {
     return tokens;
 }
 
+/*
+ * Release every cached tokenized SQL statement and reset cache statistics.
+ */
 void soft_parser_cleanup_cache(void) {
     SoftParserCacheEntry *entry;
     SoftParserCacheEntry *next;
@@ -494,14 +541,23 @@ void soft_parser_cleanup_cache(void) {
     soft_parser_cache_hit_count = 0;
 }
 
+/*
+ * Return the number of SQL statements currently stored in the parser cache.
+ */
 int soft_parser_get_cache_entry_count(void) {
     return soft_parser_cache_entry_count;
 }
 
+/*
+ * Return the number of parser cache hits since the last cleanup.
+ */
 int soft_parser_get_cache_hit_count(void) {
     return soft_parser_cache_hit_count;
 }
 
+/*
+ * Convert one token type enum into a readable label for debugging or tests.
+ */
 const char *soft_parser_token_type_name(TokenType type) {
     switch (type) {
         case TOKEN_KEYWORD:

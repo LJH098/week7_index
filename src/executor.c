@@ -7,6 +7,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Find a column name in a loaded table schema using case-insensitive matching.
+ * Returns the column index or FAILURE when the column does not exist.
+ */
 static int executor_find_column_index(const char columns[][MAX_IDENTIFIER_LEN],
                                       int col_count, const char *target) {
     int i;
@@ -20,10 +24,18 @@ static int executor_find_column_index(const char columns[][MAX_IDENTIFIER_LEN],
     return FAILURE;
 }
 
+/*
+ * Duplicate one projected cell value, treating NULL as an empty string.
+ * Caller owns the returned string.
+ */
 static char *executor_duplicate_cell(const char *value) {
     return utils_strdup(value == NULL ? "" : value);
 }
 
+/*
+ * Allocate the outer row array for a SELECT result set.
+ * Returns SUCCESS and stores ownership in rows.
+ */
 static int executor_allocate_result_rows(char ****rows, int row_count) {
     if (row_count <= 0) {
         *rows = NULL;
@@ -39,6 +51,10 @@ static int executor_allocate_result_rows(char ****rows, int row_count) {
     return SUCCESS;
 }
 
+/*
+ * Copy the selected columns from one source row into the result set.
+ * Returns SUCCESS when the new projected row is fully allocated.
+ */
 static int executor_copy_projected_row(char ***result_rows, int result_index,
                                        char **source_row, const int *selected_indices,
                                        int selected_count) {
@@ -68,10 +84,16 @@ static int executor_copy_projected_row(char ***result_rows, int result_index,
     return SUCCESS;
 }
 
+/*
+ * Release a projected result table allocated by executor helpers.
+ */
 static void executor_free_result_rows(char ***rows, int row_count, int col_count) {
     storage_free_rows(rows, row_count, col_count);
 }
 
+/*
+ * Print one horizontal border line for the tabular SELECT output.
+ */
 static void executor_print_border(const int *widths, int col_count) {
     int i;
     int j;
@@ -85,6 +107,9 @@ static void executor_print_border(const int *widths, int col_count) {
     puts("+");
 }
 
+/*
+ * Print query results in a MySQL-style table using display-width-aware padding.
+ */
 static void executor_print_table(char headers[][MAX_IDENTIFIER_LEN], int header_count,
                                  char ***rows, int row_count) {
     int widths[MAX_COLUMNS];
@@ -126,6 +151,9 @@ static void executor_print_table(char headers[][MAX_IDENTIFIER_LEN], int header_
     executor_print_border(widths, header_count);
 }
 
+/*
+ * Compare two row offsets so indexed results can be restored to file order.
+ */
 static int executor_compare_offsets(const void *lhs, const void *rhs) {
     long left = *(const long *)lhs;
     long right = *(const long *)rhs;
@@ -139,6 +167,10 @@ static int executor_compare_offsets(const void *lhs, const void *rhs) {
     return 0;
 }
 
+/*
+ * Resolve SELECT projection columns into source indices and output headers.
+ * Returns SUCCESS when every requested column exists in the table.
+ */
 static int executor_prepare_projection(const SelectStatement *stmt,
                                        const TableData *table,
                                        int selected_indices[],
@@ -180,6 +212,10 @@ static int executor_prepare_projection(const SelectStatement *stmt,
     return SUCCESS;
 }
 
+/*
+ * Copy every table row into a projected result set for SELECT without WHERE.
+ * Caller owns out_rows on success.
+ */
 static int executor_collect_all_rows(const TableData *table,
                                      const int *selected_indices, int selected_count,
                                      char ****out_rows, int *out_row_count) {
@@ -203,6 +239,10 @@ static int executor_collect_all_rows(const TableData *table,
     return SUCCESS;
 }
 
+/*
+ * Build a transient index, resolve matching offsets, and load only those rows.
+ * Caller owns out_rows on success.
+ */
 static int executor_collect_indexed_rows(const SelectStatement *stmt,
                                          const TableData *table,
                                          const int *selected_indices,
@@ -280,6 +320,9 @@ static int executor_collect_indexed_rows(const SelectStatement *stmt,
     return SUCCESS;
 }
 
+/*
+ * Execute one INSERT statement through the storage layer and print feedback.
+ */
 static int executor_execute_insert(const InsertStatement *stmt) {
     if (storage_insert(stmt->table_name, stmt) != SUCCESS) {
         return FAILURE;
@@ -289,6 +332,9 @@ static int executor_execute_insert(const InsertStatement *stmt) {
     return SUCCESS;
 }
 
+/*
+ * Execute one SELECT statement, print a formatted table, and free all results.
+ */
 static int executor_execute_select(const SelectStatement *stmt) {
     TableData table;
     int selected_indices[MAX_COLUMNS];
@@ -334,6 +380,9 @@ static int executor_execute_select(const SelectStatement *stmt) {
     return SUCCESS;
 }
 
+/*
+ * Execute one DELETE statement and print the deleted row count.
+ */
 static int executor_execute_delete(const DeleteStatement *stmt) {
     int deleted_count;
 
@@ -347,6 +396,10 @@ static int executor_execute_delete(const DeleteStatement *stmt) {
     return SUCCESS;
 }
 
+/*
+ * Dispatch one parsed SQL statement to the matching executor routine.
+ * Returns SUCCESS on execution success, otherwise FAILURE.
+ */
 int executor_execute(const SqlStatement *statement) {
     if (statement == NULL) {
         return FAILURE;

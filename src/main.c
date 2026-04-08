@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Advance past consecutive whitespace characters in text.
+ * Returns the next position that may begin a SQL statement.
+ */
 static size_t main_skip_whitespace(const char *text, size_t index) {
     while (text[index] != '\0' && isspace((unsigned char)text[index])) {
         index++;
@@ -15,6 +19,10 @@ static size_t main_skip_whitespace(const char *text, size_t index) {
     return index;
 }
 
+/*
+ * Parse and execute one complete SQL statement string.
+ * Returns SUCCESS when execution finishes or the statement is empty.
+ */
 static int main_process_sql_statement(const char *sql) {
     Token *tokens;
     int token_count;
@@ -54,6 +62,10 @@ static int main_process_sql_statement(const char *sql) {
     return status;
 }
 
+/*
+ * Read a .sql file, split statements by semicolon, and execute them in order.
+ * Returns SUCCESS unless file loading or internal allocation fails.
+ */
 static int main_run_file_mode(const char *path) {
     char *content;
     size_t start;
@@ -104,6 +116,10 @@ static int main_run_file_mode(const char *path) {
     return SUCCESS;
 }
 
+/*
+ * Compare one input line with a control keyword after trimming whitespace.
+ * Returns 1 when the trimmed line matches, otherwise 0.
+ */
 static int main_trimmed_equals(const char *line, const char *keyword) {
     char *copy;
     int result;
@@ -119,6 +135,10 @@ static int main_trimmed_equals(const char *line, const char *keyword) {
     return result;
 }
 
+/*
+ * Replace the current REPL buffer with the text after one completed statement.
+ * On success the caller keeps ownership of the updated buffer.
+ */
 static int main_replace_buffer_with_remainder(char **buffer, size_t *length,
                                               size_t *capacity, int end_index) {
     char *remainder;
@@ -142,6 +162,10 @@ static int main_replace_buffer_with_remainder(char **buffer, size_t *length,
     return SUCCESS;
 }
 
+/*
+ * Run the interactive SQL shell until the user exits or EOF is reached.
+ * Returns SUCCESS for normal shell termination, FAILURE on allocation errors.
+ */
 static int main_run_repl_mode(void) {
     char line[MAX_SQL_LENGTH];
     char *buffer;
@@ -207,6 +231,10 @@ static int main_run_repl_mode(void) {
     return SUCCESS;
 }
 
+/*
+ * Select file mode or REPL mode from argv, then clean up parser cache on exit.
+ * Returns EXIT_SUCCESS for successful completion, otherwise EXIT_FAILURE.
+ */
 int main(int argc, char *argv[]) {
     int status;
 

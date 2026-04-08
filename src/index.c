@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Hash one text key for equality-index bucket placement.
+ */
 static unsigned long index_hash_string(const char *text) {
     unsigned long hash;
     size_t i;
@@ -16,6 +19,10 @@ static unsigned long index_hash_string(const char *text) {
     return hash;
 }
 
+/*
+ * Append one file offset to a dynamic offset list.
+ * Returns SUCCESS when the offset is stored in list.
+ */
 static int index_offset_list_append(OffsetList *list, long offset) {
     long *new_items;
 
@@ -45,6 +52,9 @@ static int index_offset_list_append(OffsetList *list, long offset) {
     return SUCCESS;
 }
 
+/*
+ * Insert one key/offset pair into the equality hash index.
+ */
 static int index_add_hash_entry(EqualityIndex *equality, const char *key,
                                 long offset) {
     unsigned long bucket_index;
@@ -86,6 +96,9 @@ static int index_add_hash_entry(EqualityIndex *equality, const char *key,
     return SUCCESS;
 }
 
+/*
+ * Sort range entries by indexed value and then by source row offset.
+ */
 static int index_compare_range_entries(const void *lhs, const void *rhs) {
     const RangeEntry *left = (const RangeEntry *)lhs;
     const RangeEntry *right = (const RangeEntry *)rhs;
@@ -104,10 +117,16 @@ static int index_compare_range_entries(const void *lhs, const void *rhs) {
     return 0;
 }
 
+/*
+ * Compare one sorted range entry against a query value.
+ */
 static int index_compare_entry_to_value(const RangeEntry *entry, const char *value) {
     return utils_compare_values(entry->key, value);
 }
 
+/*
+ * Return the first range position whose key is not less than value.
+ */
 static int index_lower_bound(const RangeEntry *entries, int count,
                              const char *value) {
     int left;
@@ -128,6 +147,9 @@ static int index_lower_bound(const RangeEntry *entries, int count,
     return left;
 }
 
+/*
+ * Return the first range position whose key is greater than value.
+ */
 static int index_upper_bound(const RangeEntry *entries, int count,
                              const char *value) {
     int left;
@@ -148,6 +170,9 @@ static int index_upper_bound(const RangeEntry *entries, int count,
     return left;
 }
 
+/*
+ * Copy offsets into a caller-owned buffer for query results.
+ */
 static int index_copy_offsets(const long *source, int count, long **offsets) {
     if (count <= 0) {
         *offsets = NULL;
@@ -164,6 +189,10 @@ static int index_copy_offsets(const long *source, int count, long **offsets) {
     return SUCCESS;
 }
 
+/*
+ * Build equality and range indexes for one loaded table column.
+ * The caller owns out_index and must release it with index_free().
+ */
 int index_build(const TableData *table, int column_index, TableIndex *out_index) {
     int i;
 
@@ -216,6 +245,10 @@ int index_build(const TableData *table, int column_index, TableIndex *out_index)
     return SUCCESS;
 }
 
+/*
+ * Query the equality hash index for one value.
+ * Caller owns the returned offsets array.
+ */
 int index_query_equals(const TableIndex *index, const char *value,
                        long **offsets, int *count) {
     unsigned long bucket_index;
@@ -243,6 +276,10 @@ int index_query_equals(const TableIndex *index, const char *value,
     return SUCCESS;
 }
 
+/*
+ * Query the range index for !=, >, >=, <, and <= operations.
+ * Caller owns the returned offsets array.
+ */
 int index_query_range(const TableIndex *index, const char *op, const char *value,
                       long **offsets, int *count) {
     int start;
@@ -322,6 +359,9 @@ int index_query_range(const TableIndex *index, const char *op, const char *value
     return SUCCESS;
 }
 
+/*
+ * Release every dynamic allocation owned by one built index.
+ */
 void index_free(TableIndex *index) {
     int i;
     HashNode *node;

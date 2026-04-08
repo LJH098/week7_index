@@ -18,6 +18,9 @@ static int storage_write_csv_row(FILE *fp, const char **values, int count);
 static int storage_load_table_from_fp(FILE *fp, const char *table_name,
                                       TableData *table, int include_offsets);
 
+/*
+ * Ensure that the data directory exists before table files are created.
+ */
 static int storage_ensure_data_dir(void) {
     struct stat info;
 
@@ -37,6 +40,9 @@ static int storage_ensure_data_dir(void) {
     return SUCCESS;
 }
 
+/*
+ * Build the CSV path for one logical table name.
+ */
 static int storage_build_path(const char *table_name, char *path, size_t path_size) {
     int written;
 
@@ -52,6 +58,9 @@ static int storage_build_path(const char *table_name, char *path, size_t path_si
     return SUCCESS;
 }
 
+/*
+ * Acquire or release an OS-level lock on an opened table file.
+ */
 static int storage_lock_file(FILE *fp, int operation) {
     int fd;
 
@@ -68,6 +77,9 @@ static int storage_lock_file(FILE *fp, int operation) {
     return SUCCESS;
 }
 
+/*
+ * Append one character to a dynamically growing text buffer.
+ */
 static int storage_append_char(char **buffer, size_t *length, size_t *capacity,
                                char value) {
     char *new_buffer;
@@ -96,6 +108,10 @@ static int storage_append_char(char **buffer, size_t *length, size_t *capacity,
     return SUCCESS;
 }
 
+/*
+ * Append one copied field string to a dynamic field array.
+ * The field array owns the duplicated value on success.
+ */
 static int storage_append_field(char ***fields, int *count, int *capacity,
                                 const char *value) {
     char **new_fields;
@@ -128,6 +144,9 @@ static int storage_append_field(char ***fields, int *count, int *capacity,
     return SUCCESS;
 }
 
+/*
+ * Release a parsed CSV field list.
+ */
 static void storage_free_field_list(char **fields, int count) {
     int i;
 
@@ -142,6 +161,10 @@ static void storage_free_field_list(char **fields, int count) {
     free(fields);
 }
 
+/*
+ * Parse one CSV line into individual field strings, respecting quoted commas.
+ * Caller owns out_fields on success.
+ */
 static int storage_parse_csv_line(const char *line, char ***out_fields,
                                   int *out_count) {
     char **fields;
@@ -247,6 +270,9 @@ static int storage_parse_csv_line(const char *line, char ***out_fields,
     return SUCCESS;
 }
 
+/*
+ * Copy parsed header values into the fixed-size column buffer.
+ */
 static int storage_copy_columns(char columns[][MAX_IDENTIFIER_LEN], int col_count,
                                 char **parsed_columns, int parsed_count) {
     int i;
@@ -266,6 +292,10 @@ static int storage_copy_columns(char columns[][MAX_IDENTIFIER_LEN], int col_coun
     return SUCCESS;
 }
 
+/*
+ * Find a column name in a schema using case-insensitive matching.
+ * Returns the column index or FAILURE when missing.
+ */
 static int storage_find_column_index(const char columns[][MAX_IDENTIFIER_LEN],
                                      int col_count, const char *target) {
     int i;
@@ -283,6 +313,9 @@ static int storage_find_column_index(const char columns[][MAX_IDENTIFIER_LEN],
     return FAILURE;
 }
 
+/*
+ * Verify that the primary key column id remains unique before an INSERT.
+ */
 static int storage_validate_primary_key(FILE *fp, const char *table_name,
                                         const char columns[][MAX_IDENTIFIER_LEN],
                                         int col_count,
@@ -340,6 +373,10 @@ static int storage_validate_primary_key(FILE *fp, const char *table_name,
     return SUCCESS;
 }
 
+/*
+ * Evaluate one WHERE comparison operator against two scalar values.
+ * Returns 1 for match, 0 for no match, or FAILURE for invalid input.
+ */
 static int storage_compare_with_operator(const char *lhs, const char *op,
                                          const char *rhs) {
     int comparison;
@@ -372,6 +409,9 @@ static int storage_compare_with_operator(const char *lhs, const char *op,
     return FAILURE;
 }
 
+/*
+ * Evaluate whether one loaded row satisfies the provided WHERE clause.
+ */
 static int storage_row_matches_where(char **row,
                                      const char columns[][MAX_IDENTIFIER_LEN],
                                      int col_count,
@@ -391,6 +431,9 @@ static int storage_row_matches_where(char **row,
     return storage_compare_with_operator(row[column_index], where->op, where->value);
 }
 
+/*
+ * Write the CSV header row for a table schema.
+ */
 static int storage_write_header(FILE *fp, const char columns[][MAX_IDENTIFIER_LEN],
                                 int col_count) {
     const char *header_values[MAX_COLUMNS];
@@ -407,6 +450,9 @@ static int storage_write_header(FILE *fp, const char columns[][MAX_IDENTIFIER_LE
     return storage_write_csv_row(fp, header_values, col_count);
 }
 
+/*
+ * Scan the table and compute the next auto-increment id value as text.
+ */
 static int storage_get_next_auto_id(FILE *fp, const char *table_name,
                                     const char columns[][MAX_IDENTIFIER_LEN],
                                     int col_count, char *buffer,
@@ -472,6 +518,9 @@ static int storage_get_next_auto_id(FILE *fp, const char *table_name,
     return SUCCESS;
 }
 
+/*
+ * Write one CSV cell, adding quotes and escapes when required.
+ */
 static int storage_write_csv_value(FILE *fp, const char *value) {
     size_t i;
     int needs_quotes;
@@ -517,6 +566,9 @@ static int storage_write_csv_value(FILE *fp, const char *value) {
     return SUCCESS;
 }
 
+/*
+ * Write one full CSV row from an array of string values.
+ */
 static int storage_write_csv_row(FILE *fp, const char **values, int count) {
     int i;
 
@@ -541,6 +593,9 @@ static int storage_write_csv_row(FILE *fp, const char **values, int count) {
     return SUCCESS;
 }
 
+/*
+ * Read and parse the header row from an opened table file.
+ */
 static int storage_read_header(FILE *fp, char columns[][MAX_IDENTIFIER_LEN],
                                int *col_count) {
     char line[MAX_CSV_LINE_LENGTH];
@@ -582,6 +637,10 @@ static int storage_read_header(FILE *fp, char columns[][MAX_IDENTIFIER_LEN],
     return SUCCESS;
 }
 
+/*
+ * Load all rows from an opened table file and optionally capture byte offsets.
+ * The resulting table owns its rows and offsets until storage_free_table().
+ */
 static int storage_load_table_from_fp(FILE *fp, const char *table_name,
                                       TableData *table, int include_offsets) {
     char line[MAX_CSV_LINE_LENGTH];
@@ -697,6 +756,9 @@ static int storage_load_table_from_fp(FILE *fp, const char *table_name,
     return SUCCESS;
 }
 
+/*
+ * Open a table file, apply a shared lock, and load its contents into memory.
+ */
 static int storage_load_table_internal(const char *table_name, TableData *table,
                                        int include_offsets) {
     FILE *fp;
@@ -729,6 +791,10 @@ static int storage_load_table_internal(const char *table_name, TableData *table,
     return status;
 }
 
+/*
+ * Rewrite a table while removing rows that match the optional WHERE clause.
+ * Returns the deleted row count through deleted_count.
+ */
 int storage_delete(const char *table_name, const DeleteStatement *stmt,
                    int *deleted_count) {
     FILE *source_fp;
@@ -841,6 +907,10 @@ int storage_delete(const char *table_name, const DeleteStatement *stmt,
     return SUCCESS;
 }
 
+/*
+ * Insert one row into a table, creating the CSV file and schema if needed.
+ * Supports auto-increment id and primary-key validation.
+ */
 int storage_insert(const char *table_name, const InsertStatement *stmt) {
     FILE *fp;
     char path[MAX_PATH_LEN];
@@ -1048,6 +1118,10 @@ int storage_insert(const char *table_name, const InsertStatement *stmt) {
     return SUCCESS;
 }
 
+/*
+ * Load a table and return only its row matrix.
+ * Caller owns the returned rows and must free them with storage_free_rows().
+ */
 char ***storage_select(const char *table_name, int *row_count, int *col_count) {
     TableData table;
 
@@ -1066,6 +1140,9 @@ char ***storage_select(const char *table_name, int *row_count, int *col_count) {
     return table.rows;
 }
 
+/*
+ * Read only the table header columns from disk.
+ */
 int storage_get_columns(const char *table_name, char columns[][MAX_IDENTIFIER_LEN],
                         int *col_count) {
     FILE *fp;
@@ -1098,10 +1175,17 @@ int storage_get_columns(const char *table_name, char columns[][MAX_IDENTIFIER_LE
     return status;
 }
 
+/*
+ * Load a table and include row offsets for indexed access paths.
+ */
 int storage_load_table(const char *table_name, TableData *table) {
     return storage_load_table_internal(table_name, table, 1);
 }
 
+/*
+ * Read exactly one row from a saved byte offset inside a table file.
+ * Caller owns out_row on success.
+ */
 int storage_read_row_at_offset(const char *table_name, long offset, int expected_col_count,
                                char ***out_row) {
     FILE *fp;
@@ -1163,6 +1247,9 @@ int storage_read_row_at_offset(const char *table_name, long offset, int expected
     return SUCCESS;
 }
 
+/*
+ * Free one parsed CSV row.
+ */
 void storage_free_row(char **row, int col_count) {
     int i;
 
@@ -1177,6 +1264,9 @@ void storage_free_row(char **row, int col_count) {
     free(row);
 }
 
+/*
+ * Free an array of parsed CSV rows.
+ */
 void storage_free_rows(char ***rows, int row_count, int col_count) {
     int i;
 
@@ -1191,6 +1281,9 @@ void storage_free_rows(char ***rows, int row_count, int col_count) {
     free(rows);
 }
 
+/*
+ * Free every dynamic allocation owned by a loaded table structure.
+ */
 void storage_free_table(TableData *table) {
     if (table == NULL) {
         return;
