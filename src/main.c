@@ -9,8 +9,8 @@
 #include <string.h>
 
 /*
- * Advance past consecutive whitespace characters in text.
- * Returns the next position that may begin a SQL statement.
+ * 문자열에서 연속된 공백을 건너뛰고 다음 유효 위치를 찾는다.
+ * 반환값은 SQL 문이 시작될 수 있는 다음 인덱스다.
  */
 static size_t main_skip_whitespace(const char *text, size_t index) {
     while (text[index] != '\0' && isspace((unsigned char)text[index])) {
@@ -20,8 +20,8 @@ static size_t main_skip_whitespace(const char *text, size_t index) {
 }
 
 /*
- * Parse and execute one complete SQL statement string.
- * Returns SUCCESS when execution finishes or the statement is empty.
+ * 완전한 SQL 문 하나를 파싱하고 실행한다.
+ * 빈 문장이거나 정상 실행되면 SUCCESS를 반환한다.
  */
 static int main_process_sql_statement(const char *sql) {
     Token *tokens;
@@ -63,8 +63,8 @@ static int main_process_sql_statement(const char *sql) {
 }
 
 /*
- * Read a .sql file, split statements by semicolon, and execute them in order.
- * Returns SUCCESS unless file loading or internal allocation fails.
+ * `.sql` 파일을 읽어 세미콜론 기준으로 문장을 나눈 뒤 순서대로 실행한다.
+ * 파일 읽기나 내부 메모리 할당에 실패하지 않으면 SUCCESS를 반환한다.
  */
 static int main_run_file_mode(const char *path) {
     char *content;
@@ -117,8 +117,8 @@ static int main_run_file_mode(const char *path) {
 }
 
 /*
- * Compare one input line with a control keyword after trimming whitespace.
- * Returns 1 when the trimmed line matches, otherwise 0.
+ * 한 줄 입력을 공백 제거 후 제어 키워드와 비교한다.
+ * 일치하면 1, 아니면 0을 반환한다.
  */
 static int main_trimmed_equals(const char *line, const char *keyword) {
     char *copy;
@@ -136,8 +136,8 @@ static int main_trimmed_equals(const char *line, const char *keyword) {
 }
 
 /*
- * Replace the current REPL buffer with the text after one completed statement.
- * On success the caller keeps ownership of the updated buffer.
+ * REPL 버퍼에서 처리한 SQL 문을 제거하고 남은 문자열만 유지한다.
+ * 성공 시 갱신된 버퍼 소유권은 계속 호출자에게 있다.
  */
 static int main_replace_buffer_with_remainder(char **buffer, size_t *length,
                                               size_t *capacity, int end_index) {
@@ -163,8 +163,8 @@ static int main_replace_buffer_with_remainder(char **buffer, size_t *length,
 }
 
 /*
- * Run the interactive SQL shell until the user exits or EOF is reached.
- * Returns SUCCESS for normal shell termination, FAILURE on allocation errors.
+ * 사용자가 종료하거나 EOF가 올 때까지 대화형 SQL 셸을 실행한다.
+ * 정상 종료면 SUCCESS, 메모리 할당 실패면 FAILURE를 반환한다.
  */
 static int main_run_repl_mode(void) {
     char line[MAX_SQL_LENGTH];
@@ -232,8 +232,8 @@ static int main_run_repl_mode(void) {
 }
 
 /*
- * Select file mode or REPL mode from argv, then clean up parser cache on exit.
- * Returns EXIT_SUCCESS for successful completion, otherwise EXIT_FAILURE.
+ * argv에 따라 파일 모드 또는 REPL 모드를 선택하고 종료 전에 파서 캐시를 정리한다.
+ * 정상 종료면 EXIT_SUCCESS, 아니면 EXIT_FAILURE를 반환한다.
  */
 int main(int argc, char *argv[]) {
     int status;

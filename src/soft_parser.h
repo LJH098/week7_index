@@ -22,29 +22,29 @@ typedef struct {
 } Token;
 
 /*
- * Convert raw SQL text into a dynamically allocated token array.
- * On success, returns the token array and stores the token count.
- * Caller owns the returned memory and must free it with free().
+ * 원본 SQL 문자열을 동적으로 할당된 토큰 배열로 변환한다.
+ * 성공 시 토큰 배열을 반환하고 token_count에 개수를 저장한다.
+ * 반환된 메모리는 호출자가 free()로 해제해야 한다.
  */
 Token *soft_parse(const char *sql, int *token_count);
 
 /*
- * Release all cached tokenized SQL statements held by the soft parser.
+ * 소프트 파서가 보관 중인 캐시를 모두 해제한다.
  */
 void soft_parser_cleanup_cache(void);
 
 /*
- * Return the number of cached SQL statements currently stored.
+ * 현재 캐시에 저장된 SQL 문 개수를 반환한다.
  */
 int soft_parser_get_cache_entry_count(void);
 
 /*
- * Return the number of cache hits since the last cleanup.
+ * 마지막 캐시 정리 이후 발생한 캐시 히트 수를 반환한다.
  */
 int soft_parser_get_cache_hit_count(void);
 
 /*
- * Return a human-readable name for a token type.
+ * 토큰 타입을 사람이 읽기 쉬운 문자열로 반환한다.
  */
 const char *soft_parser_token_type_name(TokenType type);
 

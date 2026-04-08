@@ -8,8 +8,8 @@
 #include <string.h>
 
 /*
- * Find a column name in a loaded table schema using case-insensitive matching.
- * Returns the column index or FAILURE when the column does not exist.
+ * 메모리에 올라온 테이블 스키마에서 컬럼 이름을 대소문자 무시로 찾는다.
+ * 컬럼 인덱스를 반환하고, 없으면 FAILURE를 반환한다.
  */
 static int executor_find_column_index(const char columns[][MAX_IDENTIFIER_LEN],
                                       int col_count, const char *target) {
@@ -25,16 +25,16 @@ static int executor_find_column_index(const char columns[][MAX_IDENTIFIER_LEN],
 }
 
 /*
- * Duplicate one projected cell value, treating NULL as an empty string.
- * Caller owns the returned string.
+ * 결과 셀 문자열 하나를 복제한다.
+ * NULL 값은 빈 문자열로 처리하며 반환된 메모리는 호출자가 소유한다.
  */
 static char *executor_duplicate_cell(const char *value) {
     return utils_strdup(value == NULL ? "" : value);
 }
 
 /*
- * Allocate the outer row array for a SELECT result set.
- * Returns SUCCESS and stores ownership in rows.
+ * SELECT 결과를 담을 바깥쪽 행 배열을 할당한다.
+ * 성공 시 rows에 저장하고 SUCCESS를 반환한다.
  */
 static int executor_allocate_result_rows(char ****rows, int row_count) {
     if (row_count <= 0) {
@@ -52,8 +52,8 @@ static int executor_allocate_result_rows(char ****rows, int row_count) {
 }
 
 /*
- * Copy the selected columns from one source row into the result set.
- * Returns SUCCESS when the new projected row is fully allocated.
+ * 원본 행에서 선택된 컬럼만 복사해 결과 행으로 만든다.
+ * 새 결과 행이 모두 할당되면 SUCCESS를 반환한다.
  */
 static int executor_copy_projected_row(char ***result_rows, int result_index,
                                        char **source_row, const int *selected_indices,
@@ -85,14 +85,14 @@ static int executor_copy_projected_row(char ***result_rows, int result_index,
 }
 
 /*
- * Release a projected result table allocated by executor helpers.
+ * executor 내부 헬퍼가 만든 조회 결과 테이블을 해제한다.
  */
 static void executor_free_result_rows(char ***rows, int row_count, int col_count) {
     storage_free_rows(rows, row_count, col_count);
 }
 
 /*
- * Print one horizontal border line for the tabular SELECT output.
+ * SELECT 표 출력용 가로 경계선을 한 줄 출력한다.
  */
 static void executor_print_border(const int *widths, int col_count) {
     int i;
@@ -108,7 +108,7 @@ static void executor_print_border(const int *widths, int col_count) {
 }
 
 /*
- * Print query results in a MySQL-style table using display-width-aware padding.
+ * 표시 폭을 고려해 MySQL 스타일 표 형태로 조회 결과를 출력한다.
  */
 static void executor_print_table(char headers[][MAX_IDENTIFIER_LEN], int header_count,
                                  char ***rows, int row_count) {
@@ -152,7 +152,7 @@ static void executor_print_table(char headers[][MAX_IDENTIFIER_LEN], int header_
 }
 
 /*
- * Compare two row offsets so indexed results can be restored to file order.
+ * 두 행 오프셋을 비교해 인덱스 결과를 파일 순서로 다시 정렬한다.
  */
 static int executor_compare_offsets(const void *lhs, const void *rhs) {
     long left = *(const long *)lhs;
@@ -168,8 +168,8 @@ static int executor_compare_offsets(const void *lhs, const void *rhs) {
 }
 
 /*
- * Resolve SELECT projection columns into source indices and output headers.
- * Returns SUCCESS when every requested column exists in the table.
+ * SELECT 대상 컬럼을 원본 테이블 인덱스와 출력 헤더로 변환한다.
+ * 요청된 컬럼이 모두 존재하면 SUCCESS를 반환한다.
  */
 static int executor_prepare_projection(const SelectStatement *stmt,
                                        const TableData *table,
@@ -213,8 +213,8 @@ static int executor_prepare_projection(const SelectStatement *stmt,
 }
 
 /*
- * Copy every table row into a projected result set for SELECT without WHERE.
- * Caller owns out_rows on success.
+ * WHERE가 없는 SELECT를 위해 모든 행을 결과 행 배열로 복사한다.
+ * 성공 시 out_rows의 소유권은 호출자에게 있다.
  */
 static int executor_collect_all_rows(const TableData *table,
                                      const int *selected_indices, int selected_count,
@@ -240,8 +240,8 @@ static int executor_collect_all_rows(const TableData *table,
 }
 
 /*
- * Build a transient index, resolve matching offsets, and load only those rows.
- * Caller owns out_rows on success.
+ * 일시적인 인덱스를 만들고 일치하는 오프셋만 찾아 필요한 행만 읽는다.
+ * 성공 시 out_rows의 소유권은 호출자에게 있다.
  */
 static int executor_collect_indexed_rows(const SelectStatement *stmt,
                                          const TableData *table,
@@ -321,7 +321,7 @@ static int executor_collect_indexed_rows(const SelectStatement *stmt,
 }
 
 /*
- * Execute one INSERT statement through the storage layer and print feedback.
+ * INSERT 문 하나를 스토리지 계층으로 실행하고 결과 메시지를 출력한다.
  */
 static int executor_execute_insert(const InsertStatement *stmt) {
     if (storage_insert(stmt->table_name, stmt) != SUCCESS) {
@@ -333,7 +333,7 @@ static int executor_execute_insert(const InsertStatement *stmt) {
 }
 
 /*
- * Execute one SELECT statement, print a formatted table, and free all results.
+ * SELECT 문 하나를 실행하고 표 형태로 출력한 뒤 결과 메모리를 정리한다.
  */
 static int executor_execute_select(const SelectStatement *stmt) {
     TableData table;
@@ -381,7 +381,7 @@ static int executor_execute_select(const SelectStatement *stmt) {
 }
 
 /*
- * Execute one DELETE statement and print the deleted row count.
+ * DELETE 문 하나를 실행하고 삭제된 행 수를 출력한다.
  */
 static int executor_execute_delete(const DeleteStatement *stmt) {
     int deleted_count;
@@ -397,8 +397,8 @@ static int executor_execute_delete(const DeleteStatement *stmt) {
 }
 
 /*
- * Dispatch one parsed SQL statement to the matching executor routine.
- * Returns SUCCESS on execution success, otherwise FAILURE.
+ * 파싱된 SQL 문의 종류에 따라 맞는 실행 함수로 분기한다.
+ * 실행 성공 시 SUCCESS, 실패 시 FAILURE를 반환한다.
  */
 int executor_execute(const SqlStatement *statement) {
     if (statement == NULL) {

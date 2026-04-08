@@ -37,27 +37,27 @@ typedef struct {
 } TableIndex;
 
 /*
- * Build transient in-memory equality and range indexes for one table column.
- * The index is rebuilt during query execution and is not persisted on disk.
+ * 테이블의 한 컬럼에 대해 일시적인 메모리 기반 등호/범위 인덱스를 만든다.
+ * 이 인덱스는 조회할 때마다 다시 만들어지며 디스크에는 저장되지 않는다.
  */
 int index_build(const TableData *table, int column_index, TableIndex *out_index);
 
 /*
- * Query the equality index.
- * Caller owns the returned offsets array.
+ * 등호 인덱스를 조회한다.
+ * 반환된 오프셋 배열은 호출자가 해제해야 한다.
  */
 int index_query_equals(const TableIndex *index, const char *value,
                        long **offsets, int *count);
 
 /*
- * Query the range index for !=, >, <, >=, <=.
- * Caller owns the returned offsets array.
+ * 범위 인덱스로 `!=`, `>`, `<`, `>=`, `<=` 조건을 조회한다.
+ * 반환된 오프셋 배열은 호출자가 해제해야 한다.
  */
 int index_query_range(const TableIndex *index, const char *op, const char *value,
                       long **offsets, int *count);
 
 /*
- * Release all dynamic memory owned by the index.
+ * 인덱스가 소유한 모든 동적 메모리를 해제한다.
  */
 void index_free(TableIndex *index);
 

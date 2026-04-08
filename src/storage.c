@@ -19,7 +19,7 @@ static int storage_load_table_from_fp(FILE *fp, const char *table_name,
                                       TableData *table, int include_offsets);
 
 /*
- * Ensure that the data directory exists before table files are created.
+ * 테이블 파일을 만들기 전에 data 디렉터리가 존재하는지 확인한다.
  */
 static int storage_ensure_data_dir(void) {
     struct stat info;
@@ -41,7 +41,7 @@ static int storage_ensure_data_dir(void) {
 }
 
 /*
- * Build the CSV path for one logical table name.
+ * 논리 테이블 이름으로 CSV 파일 경로를 만든다.
  */
 static int storage_build_path(const char *table_name, char *path, size_t path_size) {
     int written;
@@ -59,7 +59,7 @@ static int storage_build_path(const char *table_name, char *path, size_t path_si
 }
 
 /*
- * Acquire or release an OS-level lock on an opened table file.
+ * 열린 테이블 파일에 운영체제 수준 락을 걸거나 해제한다.
  */
 static int storage_lock_file(FILE *fp, int operation) {
     int fd;
@@ -78,7 +78,7 @@ static int storage_lock_file(FILE *fp, int operation) {
 }
 
 /*
- * Append one character to a dynamically growing text buffer.
+ * 동적으로 늘어나는 문자열 버퍼에 문자 하나를 덧붙인다.
  */
 static int storage_append_char(char **buffer, size_t *length, size_t *capacity,
                                char value) {
@@ -109,8 +109,8 @@ static int storage_append_char(char **buffer, size_t *length, size_t *capacity,
 }
 
 /*
- * Append one copied field string to a dynamic field array.
- * The field array owns the duplicated value on success.
+ * 복제한 필드 문자열 하나를 동적 필드 배열에 추가한다.
+ * 성공 시 복제된 값의 소유권은 필드 배열로 넘어간다.
  */
 static int storage_append_field(char ***fields, int *count, int *capacity,
                                 const char *value) {
@@ -145,7 +145,7 @@ static int storage_append_field(char ***fields, int *count, int *capacity,
 }
 
 /*
- * Release a parsed CSV field list.
+ * 파싱된 CSV 필드 목록을 해제한다.
  */
 static void storage_free_field_list(char **fields, int count) {
     int i;
@@ -162,8 +162,8 @@ static void storage_free_field_list(char **fields, int count) {
 }
 
 /*
- * Parse one CSV line into individual field strings, respecting quoted commas.
- * Caller owns out_fields on success.
+ * 큰따옴표 안의 쉼표를 고려해 CSV 한 줄을 필드 문자열 배열로 파싱한다.
+ * 성공 시 out_fields의 소유권은 호출자에게 있다.
  */
 static int storage_parse_csv_line(const char *line, char ***out_fields,
                                   int *out_count) {
@@ -271,7 +271,7 @@ static int storage_parse_csv_line(const char *line, char ***out_fields,
 }
 
 /*
- * Copy parsed header values into the fixed-size column buffer.
+ * 파싱한 헤더 값을 고정 크기 컬럼 버퍼로 복사한다.
  */
 static int storage_copy_columns(char columns[][MAX_IDENTIFIER_LEN], int col_count,
                                 char **parsed_columns, int parsed_count) {
@@ -293,8 +293,8 @@ static int storage_copy_columns(char columns[][MAX_IDENTIFIER_LEN], int col_coun
 }
 
 /*
- * Find a column name in a schema using case-insensitive matching.
- * Returns the column index or FAILURE when missing.
+ * 스키마에서 컬럼 이름을 대소문자 무시로 찾는다.
+ * 컬럼 인덱스를 반환하고, 없으면 FAILURE를 반환한다.
  */
 static int storage_find_column_index(const char columns[][MAX_IDENTIFIER_LEN],
                                      int col_count, const char *target) {
@@ -314,7 +314,7 @@ static int storage_find_column_index(const char columns[][MAX_IDENTIFIER_LEN],
 }
 
 /*
- * Verify that the primary key column id remains unique before an INSERT.
+ * INSERT 전에 기본 키 컬럼 `id` 값이 유일한지 검사한다.
  */
 static int storage_validate_primary_key(FILE *fp, const char *table_name,
                                         const char columns[][MAX_IDENTIFIER_LEN],
@@ -374,8 +374,8 @@ static int storage_validate_primary_key(FILE *fp, const char *table_name,
 }
 
 /*
- * Evaluate one WHERE comparison operator against two scalar values.
- * Returns 1 for match, 0 for no match, or FAILURE for invalid input.
+ * WHERE 비교 연산자 하나를 두 값에 적용한다.
+ * 조건이 참이면 1, 거짓이면 0, 잘못된 입력이면 FAILURE를 반환한다.
  */
 static int storage_compare_with_operator(const char *lhs, const char *op,
                                          const char *rhs) {
@@ -410,7 +410,7 @@ static int storage_compare_with_operator(const char *lhs, const char *op,
 }
 
 /*
- * Evaluate whether one loaded row satisfies the provided WHERE clause.
+ * 메모리에 올라온 행 하나가 WHERE 조건을 만족하는지 검사한다.
  */
 static int storage_row_matches_where(char **row,
                                      const char columns[][MAX_IDENTIFIER_LEN],
@@ -432,7 +432,7 @@ static int storage_row_matches_where(char **row,
 }
 
 /*
- * Write the CSV header row for a table schema.
+ * 테이블 스키마에 해당하는 CSV 헤더 행을 기록한다.
  */
 static int storage_write_header(FILE *fp, const char columns[][MAX_IDENTIFIER_LEN],
                                 int col_count) {
@@ -451,7 +451,7 @@ static int storage_write_header(FILE *fp, const char columns[][MAX_IDENTIFIER_LE
 }
 
 /*
- * Scan the table and compute the next auto-increment id value as text.
+ * 테이블 전체를 훑어 다음 auto-increment `id` 값을 문자열로 계산한다.
  */
 static int storage_get_next_auto_id(FILE *fp, const char *table_name,
                                     const char columns[][MAX_IDENTIFIER_LEN],
@@ -519,7 +519,7 @@ static int storage_get_next_auto_id(FILE *fp, const char *table_name,
 }
 
 /*
- * Write one CSV cell, adding quotes and escapes when required.
+ * 필요하면 따옴표와 이스케이프를 추가해 CSV 셀 하나를 기록한다.
  */
 static int storage_write_csv_value(FILE *fp, const char *value) {
     size_t i;
@@ -567,7 +567,7 @@ static int storage_write_csv_value(FILE *fp, const char *value) {
 }
 
 /*
- * Write one full CSV row from an array of string values.
+ * 문자열 배열을 이용해 CSV 행 하나를 기록한다.
  */
 static int storage_write_csv_row(FILE *fp, const char **values, int count) {
     int i;
@@ -594,7 +594,7 @@ static int storage_write_csv_row(FILE *fp, const char **values, int count) {
 }
 
 /*
- * Read and parse the header row from an opened table file.
+ * 열린 테이블 파일에서 헤더 행을 읽고 파싱한다.
  */
 static int storage_read_header(FILE *fp, char columns[][MAX_IDENTIFIER_LEN],
                                int *col_count) {
@@ -638,8 +638,8 @@ static int storage_read_header(FILE *fp, char columns[][MAX_IDENTIFIER_LEN],
 }
 
 /*
- * Load all rows from an opened table file and optionally capture byte offsets.
- * The resulting table owns its rows and offsets until storage_free_table().
+ * 열린 테이블 파일에서 모든 행을 읽고 필요하면 바이트 오프셋도 함께 저장한다.
+ * 결과로 채워진 table은 storage_free_table() 전까지 행과 오프셋을 소유한다.
  */
 static int storage_load_table_from_fp(FILE *fp, const char *table_name,
                                       TableData *table, int include_offsets) {
@@ -757,7 +757,7 @@ static int storage_load_table_from_fp(FILE *fp, const char *table_name,
 }
 
 /*
- * Open a table file, apply a shared lock, and load its contents into memory.
+ * 테이블 파일을 열고 공유 락을 건 뒤 내용을 메모리로 읽는다.
  */
 static int storage_load_table_internal(const char *table_name, TableData *table,
                                        int include_offsets) {
@@ -792,8 +792,8 @@ static int storage_load_table_internal(const char *table_name, TableData *table,
 }
 
 /*
- * Rewrite a table while removing rows that match the optional WHERE clause.
- * Returns the deleted row count through deleted_count.
+ * 선택적인 WHERE 조건에 맞는 행을 제외하고 테이블을 다시 기록한다.
+ * 삭제된 행 수는 deleted_count로 돌려준다.
  */
 int storage_delete(const char *table_name, const DeleteStatement *stmt,
                    int *deleted_count) {
@@ -908,8 +908,8 @@ int storage_delete(const char *table_name, const DeleteStatement *stmt,
 }
 
 /*
- * Insert one row into a table, creating the CSV file and schema if needed.
- * Supports auto-increment id and primary-key validation.
+ * 행 하나를 테이블에 삽입한다.
+ * 필요하면 CSV 파일과 스키마를 만들고 auto-increment id와 기본 키 검사를 처리한다.
  */
 int storage_insert(const char *table_name, const InsertStatement *stmt) {
     FILE *fp;
@@ -1119,8 +1119,8 @@ int storage_insert(const char *table_name, const InsertStatement *stmt) {
 }
 
 /*
- * Load a table and return only its row matrix.
- * Caller owns the returned rows and must free them with storage_free_rows().
+ * 테이블을 읽어 행 데이터 배열만 반환한다.
+ * 반환된 행 배열은 호출자가 storage_free_rows()로 해제해야 한다.
  */
 char ***storage_select(const char *table_name, int *row_count, int *col_count) {
     TableData table;
@@ -1141,7 +1141,7 @@ char ***storage_select(const char *table_name, int *row_count, int *col_count) {
 }
 
 /*
- * Read only the table header columns from disk.
+ * 디스크에서 테이블 헤더 컬럼만 읽는다.
  */
 int storage_get_columns(const char *table_name, char columns[][MAX_IDENTIFIER_LEN],
                         int *col_count) {
@@ -1176,15 +1176,15 @@ int storage_get_columns(const char *table_name, char columns[][MAX_IDENTIFIER_LE
 }
 
 /*
- * Load a table and include row offsets for indexed access paths.
+ * 인덱스 기반 접근에 필요한 행 오프셋까지 포함해 테이블을 읽는다.
  */
 int storage_load_table(const char *table_name, TableData *table) {
     return storage_load_table_internal(table_name, table, 1);
 }
 
 /*
- * Read exactly one row from a saved byte offset inside a table file.
- * Caller owns out_row on success.
+ * 테이블 파일 안에서 저장된 바이트 오프셋 위치의 행 하나만 읽는다.
+ * 성공 시 out_row의 소유권은 호출자에게 있다.
  */
 int storage_read_row_at_offset(const char *table_name, long offset, int expected_col_count,
                                char ***out_row) {
@@ -1248,7 +1248,7 @@ int storage_read_row_at_offset(const char *table_name, long offset, int expected
 }
 
 /*
- * Free one parsed CSV row.
+ * 파싱된 CSV 행 하나를 해제한다.
  */
 void storage_free_row(char **row, int col_count) {
     int i;
@@ -1265,7 +1265,7 @@ void storage_free_row(char **row, int col_count) {
 }
 
 /*
- * Free an array of parsed CSV rows.
+ * 파싱된 CSV 행 배열 전체를 해제한다.
  */
 void storage_free_rows(char ***rows, int row_count, int col_count) {
     int i;
@@ -1282,7 +1282,7 @@ void storage_free_rows(char ***rows, int row_count, int col_count) {
 }
 
 /*
- * Free every dynamic allocation owned by a loaded table structure.
+ * 로드된 테이블 구조체가 소유한 동적 메모리를 모두 해제한다.
  */
 void storage_free_table(TableData *table) {
     if (table == NULL) {

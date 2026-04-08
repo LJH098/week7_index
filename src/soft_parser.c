@@ -19,7 +19,7 @@ static int soft_parser_cache_entry_count = 0;
 static int soft_parser_cache_hit_count = 0;
 
 /*
- * Free one cached SQL entry and all memory it owns.
+ * 캐시에 저장된 SQL 엔트리 하나와 그 내부 메모리를 해제한다.
  */
 static void soft_parser_free_cache_entry(SoftParserCacheEntry *entry) {
     if (entry == NULL) {
@@ -32,8 +32,8 @@ static void soft_parser_free_cache_entry(SoftParserCacheEntry *entry) {
 }
 
 /*
- * Duplicate a token array so cache ownership and caller ownership stay separate.
- * Caller owns the returned array.
+ * 토큰 배열을 복제해 캐시 소유권과 호출자 소유권을 분리한다.
+ * 반환된 배열은 호출자가 소유한다.
  */
 static Token *soft_parser_clone_tokens(const Token *tokens, int token_count) {
     Token *copy;
@@ -53,7 +53,7 @@ static Token *soft_parser_clone_tokens(const Token *tokens, int token_count) {
 }
 
 /*
- * Evict the least recently used cache entry when the cache exceeds its limit.
+ * 캐시 크기 제한을 넘으면 가장 오래 안 쓰인 엔트리를 제거한다.
  */
 static void soft_parser_evict_oldest_cache_entry(void) {
     SoftParserCacheEntry *previous;
@@ -81,8 +81,8 @@ static void soft_parser_evict_oldest_cache_entry(void) {
 }
 
 /*
- * Look up a normalized SQL string in the parser cache.
- * Caller owns the returned token clone on success.
+ * 정규화된 SQL 문자열을 파서 캐시에서 조회한다.
+ * 성공 시 반환된 토큰 복제본은 호출자가 소유한다.
  */
 static Token *soft_parser_lookup_cache(const char *sql, int *token_count) {
     SoftParserCacheEntry *entry;
@@ -121,8 +121,8 @@ static Token *soft_parser_lookup_cache(const char *sql, int *token_count) {
 }
 
 /*
- * Store one parsed SQL statement in the internal cache.
- * Cache insertion is best-effort and does not transfer caller ownership.
+ * 파싱된 SQL 문 하나를 내부 캐시에 저장한다.
+ * 캐시 저장은 부가 최적화이며 호출자 소유권은 이동하지 않는다.
  */
 static int soft_parser_store_cache(const char *sql, const Token *tokens,
                                    int token_count) {
@@ -164,8 +164,8 @@ static int soft_parser_store_cache(const char *sql, const Token *tokens,
 }
 
 /*
- * Append one token to the growing token array.
- * Returns SUCCESS when the token is stored in tokens.
+ * 늘어나는 토큰 배열에 토큰 하나를 추가한다.
+ * tokens에 정상 저장되면 SUCCESS를 반환한다.
  */
 static int soft_parser_append_token(Token **tokens, int *count, int *capacity,
                                     TokenType type, const char *value) {
@@ -204,8 +204,8 @@ static int soft_parser_append_token(Token **tokens, int *count, int *capacity,
 }
 
 /*
- * Read one identifier or keyword candidate starting at index.
- * On success index advances past the consumed characters.
+ * 현재 위치에서 식별자 또는 키워드 후보 하나를 읽는다.
+ * 성공 시 index는 읽은 뒤 위치로 이동한다.
  */
 static int soft_parser_read_word(const char *sql, size_t *index, char *buffer,
                                  size_t buffer_size) {
@@ -225,8 +225,8 @@ static int soft_parser_read_word(const char *sql, size_t *index, char *buffer,
 }
 
 /*
- * Read one single-quoted SQL string literal without surrounding quotes.
- * Supports doubled single quotes inside the literal.
+ * 작은따옴표로 감싼 SQL 문자열 리터럴 하나를 읽는다.
+ * 바깥 따옴표는 제외하고, 내부의 연속 작은따옴표 이스케이프도 처리한다.
  */
 static int soft_parser_read_string(const char *sql, size_t *index, char *buffer,
                                    size_t buffer_size) {
@@ -261,7 +261,7 @@ static int soft_parser_read_string(const char *sql, size_t *index, char *buffer,
 }
 
 /*
- * Read one signed integer literal and copy its text into buffer.
+ * 부호를 포함할 수 있는 정수 리터럴 하나를 읽어 buffer에 복사한다.
  */
 static int soft_parser_read_number(const char *sql, size_t *index, char *buffer,
                                    size_t buffer_size) {
@@ -289,7 +289,7 @@ static int soft_parser_read_number(const char *sql, size_t *index, char *buffer,
 }
 
 /*
- * Return 1 when sql[index] begins an integer literal, otherwise 0.
+ * sql[index]가 정수 리터럴 시작이면 1, 아니면 0을 반환한다.
  */
 static int soft_parser_is_numeric_start(const char *sql, size_t index) {
     if (isdigit((unsigned char)sql[index])) {
@@ -305,8 +305,8 @@ static int soft_parser_is_numeric_start(const char *sql, size_t index) {
 }
 
 /*
- * Tokenize one already-trimmed SQL statement into a new token array.
- * Caller owns the returned array.
+ * 이미 trim된 SQL 문 하나를 새 토큰 배열로 분해한다.
+ * 반환된 배열은 호출자가 소유한다.
  */
 static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
     Token *tokens;
@@ -477,8 +477,8 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
 }
 
 /*
- * Normalize one SQL statement, reuse cached tokens when possible, and return
- * a caller-owned token array.
+ * SQL 문 하나를 정규화한 뒤 가능하면 캐시를 재사용하고,
+ * 호출자가 소유하는 토큰 배열을 반환한다.
  */
 Token *soft_parse(const char *sql, int *token_count) {
     char *working_sql;
@@ -515,7 +515,7 @@ Token *soft_parse(const char *sql, int *token_count) {
 
     *token_count = parsed_token_count;
     if (soft_parser_store_cache(working_sql, tokens, parsed_token_count) != SUCCESS) {
-        /* Parsing already succeeded, so cache storage is treated as best-effort. */
+        /* 파싱 자체는 성공했으므로 캐시 저장 실패는 치명 오류로 보지 않는다. */
     }
 
     free(working_sql);
@@ -523,7 +523,7 @@ Token *soft_parse(const char *sql, int *token_count) {
 }
 
 /*
- * Release every cached tokenized SQL statement and reset cache statistics.
+ * 캐시에 저장된 토큰화 결과를 모두 해제하고 캐시 통계도 초기화한다.
  */
 void soft_parser_cleanup_cache(void) {
     SoftParserCacheEntry *entry;
@@ -542,21 +542,21 @@ void soft_parser_cleanup_cache(void) {
 }
 
 /*
- * Return the number of SQL statements currently stored in the parser cache.
+ * 현재 파서 캐시에 저장된 SQL 문 개수를 반환한다.
  */
 int soft_parser_get_cache_entry_count(void) {
     return soft_parser_cache_entry_count;
 }
 
 /*
- * Return the number of parser cache hits since the last cleanup.
+ * 마지막 캐시 정리 이후 발생한 파서 캐시 히트 수를 반환한다.
  */
 int soft_parser_get_cache_hit_count(void) {
     return soft_parser_cache_hit_count;
 }
 
 /*
- * Convert one token type enum into a readable label for debugging or tests.
+ * 토큰 타입 enum 값을 디버깅이나 테스트용 문자열로 바꾼다.
  */
 const char *soft_parser_token_type_name(TokenType type) {
     switch (type) {

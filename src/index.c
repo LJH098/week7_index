@@ -5,7 +5,7 @@
 #include <string.h>
 
 /*
- * Hash one text key for equality-index bucket placement.
+ * 문자열 키 하나를 해시 값으로 변환해 등호 인덱스 버킷 위치를 정한다.
  */
 static unsigned long index_hash_string(const char *text) {
     unsigned long hash;
@@ -20,8 +20,8 @@ static unsigned long index_hash_string(const char *text) {
 }
 
 /*
- * Append one file offset to a dynamic offset list.
- * Returns SUCCESS when the offset is stored in list.
+ * 동적 오프셋 목록에 파일 오프셋 하나를 추가한다.
+ * list에 저장되면 SUCCESS를 반환한다.
  */
 static int index_offset_list_append(OffsetList *list, long offset) {
     long *new_items;
@@ -53,7 +53,7 @@ static int index_offset_list_append(OffsetList *list, long offset) {
 }
 
 /*
- * Insert one key/offset pair into the equality hash index.
+ * 키와 오프셋 한 쌍을 등호 해시 인덱스에 넣는다.
  */
 static int index_add_hash_entry(EqualityIndex *equality, const char *key,
                                 long offset) {
@@ -97,7 +97,7 @@ static int index_add_hash_entry(EqualityIndex *equality, const char *key,
 }
 
 /*
- * Sort range entries by indexed value and then by source row offset.
+ * 범위 인덱스 엔트리를 값 기준으로 정렬하고, 같으면 원본 오프셋 기준으로 정렬한다.
  */
 static int index_compare_range_entries(const void *lhs, const void *rhs) {
     const RangeEntry *left = (const RangeEntry *)lhs;
@@ -118,14 +118,14 @@ static int index_compare_range_entries(const void *lhs, const void *rhs) {
 }
 
 /*
- * Compare one sorted range entry against a query value.
+ * 정렬된 범위 엔트리 하나와 조회 값을 비교한다.
  */
 static int index_compare_entry_to_value(const RangeEntry *entry, const char *value) {
     return utils_compare_values(entry->key, value);
 }
 
 /*
- * Return the first range position whose key is not less than value.
+ * key가 value보다 작지 않은 첫 위치를 반환한다.
  */
 static int index_lower_bound(const RangeEntry *entries, int count,
                              const char *value) {
@@ -148,7 +148,7 @@ static int index_lower_bound(const RangeEntry *entries, int count,
 }
 
 /*
- * Return the first range position whose key is greater than value.
+ * key가 value보다 큰 첫 위치를 반환한다.
  */
 static int index_upper_bound(const RangeEntry *entries, int count,
                              const char *value) {
@@ -171,7 +171,8 @@ static int index_upper_bound(const RangeEntry *entries, int count,
 }
 
 /*
- * Copy offsets into a caller-owned buffer for query results.
+ * 조회 결과용 오프셋 배열을 새 메모리에 복사한다.
+ * 반환된 배열은 호출자가 소유한다.
  */
 static int index_copy_offsets(const long *source, int count, long **offsets) {
     if (count <= 0) {
@@ -190,8 +191,8 @@ static int index_copy_offsets(const long *source, int count, long **offsets) {
 }
 
 /*
- * Build equality and range indexes for one loaded table column.
- * The caller owns out_index and must release it with index_free().
+ * 메모리에 올라온 테이블의 한 컬럼에 대해 등호/범위 인덱스를 만든다.
+ * 생성된 out_index는 호출자가 index_free()로 해제해야 한다.
  */
 int index_build(const TableData *table, int column_index, TableIndex *out_index) {
     int i;
@@ -246,8 +247,8 @@ int index_build(const TableData *table, int column_index, TableIndex *out_index)
 }
 
 /*
- * Query the equality hash index for one value.
- * Caller owns the returned offsets array.
+ * 등호 해시 인덱스에서 값 하나를 조회한다.
+ * 반환된 오프셋 배열은 호출자가 해제해야 한다.
  */
 int index_query_equals(const TableIndex *index, const char *value,
                        long **offsets, int *count) {
@@ -277,8 +278,8 @@ int index_query_equals(const TableIndex *index, const char *value,
 }
 
 /*
- * Query the range index for !=, >, >=, <, and <= operations.
- * Caller owns the returned offsets array.
+ * 범위 인덱스로 `!=`, `>`, `>=`, `<`, `<=` 조건을 조회한다.
+ * 반환된 오프셋 배열은 호출자가 해제해야 한다.
  */
 int index_query_range(const TableIndex *index, const char *op, const char *value,
                       long **offsets, int *count) {
@@ -360,7 +361,7 @@ int index_query_range(const TableIndex *index, const char *op, const char *value
 }
 
 /*
- * Release every dynamic allocation owned by one built index.
+ * 생성된 인덱스가 소유한 동적 메모리를 모두 해제한다.
  */
 void index_free(TableIndex *index) {
     int i;

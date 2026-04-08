@@ -46,8 +46,8 @@ typedef struct {
 } SqlStatement;
 
 /*
- * Parse a token array into a structured SQL statement.
- * Returns SUCCESS on success, FAILURE on syntax error.
+ * 토큰 배열을 구조화된 SQL 문 구조체로 파싱한다.
+ * 성공 시 SUCCESS, 문법 오류 시 FAILURE를 반환한다.
  */
 int hard_parse(const Token *tokens, int token_count, SqlStatement *out);
 

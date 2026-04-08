@@ -4,8 +4,8 @@
 #include <string.h>
 
 /*
- * Check whether one token matches the expected type and optional text value.
- * Returns 1 for a match, otherwise 0.
+ * 토큰 하나가 기대한 타입과 선택적 문자열 값에 맞는지 확인한다.
+ * 일치하면 1, 아니면 0을 반환한다.
  */
 static int hard_parser_is_token(const Token *tokens, int token_count, int index,
                                 TokenType type, const char *value) {
@@ -25,15 +25,15 @@ static int hard_parser_is_token(const Token *tokens, int token_count, int index,
 }
 
 /*
- * Print one parser error message to stderr.
+ * 파서 오류 메시지 하나를 stderr로 출력한다.
  */
 static void hard_parser_print_error(const char *message) {
     fprintf(stderr, "Error: %s\n", message);
 }
 
 /*
- * Consume one required keyword token and advance the parser cursor.
- * Returns SUCCESS on match, otherwise FAILURE.
+ * 필수 키워드 토큰 하나를 소비하고 파서 위치를 앞으로 이동한다.
+ * 일치하면 SUCCESS, 아니면 FAILURE를 반환한다.
  */
 static int hard_parser_expect_keyword(const Token *tokens, int token_count,
                                       int *index, const char *keyword) {
@@ -47,8 +47,8 @@ static int hard_parser_expect_keyword(const Token *tokens, int token_count,
 }
 
 /*
- * Consume one required identifier token and copy it into dest.
- * Returns SUCCESS on match, otherwise FAILURE.
+ * 필수 식별자 토큰 하나를 읽어 dest에 복사한다.
+ * 일치하면 SUCCESS, 아니면 FAILURE를 반환한다.
  */
 static int hard_parser_expect_identifier(const Token *tokens, int token_count,
                                          int *index, char *dest, size_t dest_size) {
@@ -67,8 +67,8 @@ static int hard_parser_expect_identifier(const Token *tokens, int token_count,
 }
 
 /*
- * Consume one integer or string literal token and copy its text into dest.
- * Returns SUCCESS on match, otherwise FAILURE.
+ * 정수 또는 문자열 리터럴 토큰 하나를 읽어 dest에 복사한다.
+ * 일치하면 SUCCESS, 아니면 FAILURE를 반환한다.
  */
 static int hard_parser_expect_literal(const Token *tokens, int token_count,
                                       int *index, char *dest, size_t dest_size) {
@@ -99,7 +99,7 @@ static int hard_parser_expect_literal(const Token *tokens, int token_count,
 }
 
 /*
- * Consume an optional trailing semicolon and reject any extra tokens after it.
+ * 선택적인 마지막 세미콜론을 소비하고 남는 토큰이 있으면 오류로 처리한다.
  */
 static int hard_parser_consume_optional_semicolon(const Token *tokens,
                                                   int token_count, int *index) {
@@ -116,7 +116,7 @@ static int hard_parser_consume_optional_semicolon(const Token *tokens,
 }
 
 /*
- * Parse an INSERT token stream into the InsertStatement union member.
+ * INSERT 토큰 흐름을 InsertStatement 구조체로 파싱한다.
  */
 static int hard_parser_parse_insert(const Token *tokens, int token_count,
                                     SqlStatement *out) {
@@ -216,7 +216,8 @@ static int hard_parser_parse_insert(const Token *tokens, int token_count,
 }
 
 /*
- * Parse the SELECT column list, including the SELECT * shorthand.
+ * SELECT 컬럼 목록을 파싱한다.
+ * `SELECT *` 형태도 여기서 처리한다.
  */
 static int hard_parser_parse_select_columns(const Token *tokens, int token_count,
                                             int *index, SelectStatement *stmt) {
@@ -250,7 +251,7 @@ static int hard_parser_parse_select_columns(const Token *tokens, int token_count
 }
 
 /*
- * Parse one single-condition WHERE clause into the destination structure.
+ * 단일 조건 WHERE 절을 파싱해 대상 구조체에 채운다.
  */
 static int hard_parser_parse_where(const Token *tokens, int token_count, int *index,
                                    WhereClause *where) {
@@ -282,7 +283,7 @@ static int hard_parser_parse_where(const Token *tokens, int token_count, int *in
 }
 
 /*
- * Parse a SELECT token stream into the SelectStatement union member.
+ * SELECT 토큰 흐름을 SelectStatement 구조체로 파싱한다.
  */
 static int hard_parser_parse_select(const Token *tokens, int token_count,
                                     SqlStatement *out) {
@@ -324,7 +325,7 @@ static int hard_parser_parse_select(const Token *tokens, int token_count,
 }
 
 /*
- * Parse a DELETE token stream into the DeleteStatement union member.
+ * DELETE 토큰 흐름을 DeleteStatement 구조체로 파싱한다.
  */
 static int hard_parser_parse_delete(const Token *tokens, int token_count,
                                     SqlStatement *out) {
@@ -358,8 +359,8 @@ static int hard_parser_parse_delete(const Token *tokens, int token_count,
 }
 
 /*
- * Dispatch token parsing based on the first SQL keyword.
- * Returns SUCCESS when out is filled with a valid statement.
+ * 첫 SQL 키워드를 기준으로 적절한 파싱 함수로 분기한다.
+ * out이 유효한 문장 구조체로 채워지면 SUCCESS를 반환한다.
  */
 int hard_parse(const Token *tokens, int token_count, SqlStatement *out) {
     if (tokens == NULL || token_count <= 0 || out == NULL) {

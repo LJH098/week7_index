@@ -7,8 +7,8 @@
 #include <string.h>
 
 /*
- * Duplicate a C string into newly allocated memory.
- * Caller owns the returned string.
+ * C 문자열을 새 메모리에 복제한다.
+ * 반환된 문자열은 호출자가 소유한다.
  */
 char *utils_strdup(const char *src) {
     size_t length;
@@ -30,8 +30,8 @@ char *utils_strdup(const char *src) {
 }
 
 /*
- * Copy src into dest with truncation detection.
- * Returns SUCCESS only when the full string fits in dest.
+ * src를 dest로 복사하면서 잘림 여부를 검사한다.
+ * 전체 문자열이 모두 들어갈 때만 SUCCESS를 반환한다.
  */
 int utils_safe_strcpy(char *dest, size_t dest_size, const char *src) {
     int written;
@@ -49,7 +49,7 @@ int utils_safe_strcpy(char *dest, size_t dest_size, const char *src) {
 }
 
 /*
- * Trim leading and trailing ASCII whitespace in place.
+ * 문자열 앞뒤의 ASCII 공백을 제자리에서 제거한다.
  */
 void utils_trim(char *text) {
     size_t length;
@@ -76,7 +76,7 @@ void utils_trim(char *text) {
 }
 
 /*
- * Copy src into dest while converting alphabetic characters to uppercase.
+ * src를 대문자로 바꿔 dest에 복사한다.
  */
 int utils_to_upper_copy(const char *src, char *dest, size_t dest_size) {
     size_t i;
@@ -97,8 +97,8 @@ int utils_to_upper_copy(const char *src, char *dest, size_t dest_size) {
 }
 
 /*
- * Compare two strings without case sensitivity.
- * Returns 1 on equality, otherwise 0.
+ * 두 문자열을 대소문자 없이 비교한다.
+ * 같으면 1, 아니면 0을 반환한다.
  */
 int utils_equals_ignore_case(const char *lhs, const char *rhs) {
     size_t i;
@@ -118,7 +118,7 @@ int utils_equals_ignore_case(const char *lhs, const char *rhs) {
 }
 
 /*
- * Return 1 when text matches one of the supported SQL keywords.
+ * text가 지원하는 SQL 키워드면 1을 반환한다.
  */
 int utils_is_sql_keyword(const char *text) {
     static const char *keywords[] = {
@@ -140,7 +140,7 @@ int utils_is_sql_keyword(const char *text) {
 }
 
 /*
- * Return 1 when text is a valid signed integer literal.
+ * text가 유효한 부호 있는 정수 리터럴이면 1을 반환한다.
  */
 int utils_is_integer(const char *text) {
     size_t i;
@@ -167,14 +167,15 @@ int utils_is_integer(const char *text) {
 }
 
 /*
- * Convert a validated integer string into a numeric value.
+ * 검증된 정수 문자열을 숫자 값으로 변환한다.
  */
 long long utils_parse_integer(const char *text) {
     return strtoll(text, NULL, 10);
 }
 
 /*
- * Compare SQL values numerically when both sides are integers, otherwise as text.
+ * SQL 값 두 개를 비교한다.
+ * 둘 다 정수면 숫자로 비교하고, 아니면 문자열로 비교한다.
  */
 int utils_compare_values(const char *lhs, const char *rhs) {
     long long left_number;
@@ -201,8 +202,8 @@ int utils_compare_values(const char *lhs, const char *rhs) {
 }
 
 /*
- * Read an entire text file into memory and null-terminate the buffer.
- * Caller owns the returned buffer.
+ * 텍스트 파일 전체를 메모리로 읽고 마지막에 널 문자를 붙인다.
+ * 반환된 버퍼는 호출자가 소유한다.
  */
 char *utils_read_file(const char *path) {
     FILE *fp;
@@ -260,8 +261,8 @@ char *utils_read_file(const char *path) {
 }
 
 /*
- * Append suffix to a dynamically sized text buffer.
- * On success the caller keeps ownership of the updated buffer.
+ * 동적으로 늘어나는 문자열 버퍼 뒤에 suffix를 덧붙인다.
+ * 성공 후에도 버퍼 소유권은 호출자에게 있다.
  */
 int utils_append_buffer(char **buffer, size_t *length, size_t *capacity,
                         const char *suffix) {
@@ -309,8 +310,8 @@ int utils_append_buffer(char **buffer, size_t *length, size_t *capacity,
 }
 
 /*
- * Find the next semicolon that is not inside a single-quoted string literal.
- * Returns the index of the terminator or FAILURE when none exists.
+ * 작은따옴표 문자열 바깥에 있는 다음 세미콜론 위치를 찾는다.
+ * 종료자 인덱스를 반환하고, 없으면 FAILURE를 반환한다.
  */
 int utils_find_statement_terminator(const char *text, size_t start_index) {
     int in_quotes;
@@ -340,15 +341,15 @@ int utils_find_statement_terminator(const char *text, size_t start_index) {
 }
 
 /*
- * Return 1 when text already contains a complete SQL statement terminator.
+ * text 안에 완전한 SQL 문 종료자가 있으면 1을 반환한다.
  */
 int utils_has_statement_terminator(const char *text) {
     return utils_find_statement_terminator(text, 0) != FAILURE;
 }
 
 /*
- * Copy a substring into newly allocated memory.
- * Caller owns the returned string.
+ * 부분 문자열을 새 메모리에 복사한다.
+ * 반환된 문자열은 호출자가 소유한다.
  */
 char *utils_substring(const char *text, size_t start, size_t length) {
     char *copy;
@@ -369,7 +370,7 @@ char *utils_substring(const char *text, size_t start, size_t length) {
 }
 
 /*
- * Decode one UTF-8 code point and report both width and byte count.
+ * UTF-8 코드 포인트 하나를 해석하고 사용한 바이트 수를 돌려준다.
  */
 static int utils_utf8_decode(const unsigned char *text, size_t *consumed,
                              unsigned int *codepoint) {
@@ -436,7 +437,7 @@ static int utils_utf8_decode(const unsigned char *text, size_t *consumed,
 }
 
 /*
- * Return 1 for combining marks that do not occupy their own terminal cell.
+ * 조합 문자처럼 자체 칸을 차지하지 않는 코드 포인트면 1을 반환한다.
  */
 static int utils_is_zero_width_codepoint(unsigned int codepoint) {
     return
@@ -448,7 +449,7 @@ static int utils_is_zero_width_codepoint(unsigned int codepoint) {
 }
 
 /*
- * Return 1 for code points typically rendered as double-width in terminals.
+ * 터미널에서 보통 두 칸 폭으로 보이는 코드 포인트면 1을 반환한다.
  */
 static int utils_is_wide_codepoint(unsigned int codepoint) {
     return
@@ -468,7 +469,7 @@ static int utils_is_wide_codepoint(unsigned int codepoint) {
 }
 
 /*
- * Estimate the terminal display width of a UTF-8 string.
+ * UTF-8 문자열의 터미널 표시 폭을 계산한다.
  */
 int utils_display_width(const char *text) {
     const unsigned char *cursor;
@@ -492,9 +493,9 @@ int utils_display_width(const char *text) {
         if (codepoint == '\t') {
             width += 4;
         } else if (codepoint < 0x20U || (codepoint >= 0x7FU && codepoint < 0xA0U)) {
-            /* Control characters do not take a printable cell. */
+            /* 제어 문자는 출력 셀을 차지하지 않는다. */
         } else if (utils_is_zero_width_codepoint(codepoint)) {
-            /* Combining characters share the previous cell. */
+            /* 조합 문자는 앞 문자 셀을 함께 사용한다. */
         } else if (utils_is_wide_codepoint(codepoint)) {
             width += 2;
         } else {
@@ -508,7 +509,7 @@ int utils_display_width(const char *text) {
 }
 
 /*
- * Print text followed by spaces until it reaches target_width display cells.
+ * 문자열을 출력하고 target_width 표시 폭이 될 때까지 공백을 채운다.
  */
 void utils_print_padded(FILE *stream, const char *text, int target_width) {
     int current_width;
