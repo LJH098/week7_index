@@ -1,4 +1,4 @@
-#include "soft_parser.h"
+#include "tokenizer.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -14,14 +14,14 @@ typedef struct SoftParserCacheEntry {
 
 #define SOFT_PARSER_CACHE_LIMIT 64
 
-static SoftParserCacheEntry *soft_parser_cache_head = NULL;
-static int soft_parser_cache_entry_count = 0;
-static int soft_parser_cache_hit_count = 0;
+static SoftParserCacheEntry *tokenizer_cache_head = NULL;
+static int tokenizer_cache_entry_count = 0;
+static int tokenizer_cache_hit_count = 0;
 
 /*
  * 캐시에 저장된 SQL 엔트리 하나와 그 내부 메모리를 해제한다.
  */
-static void soft_parser_free_cache_entry(SoftParserCacheEntry *entry) {
+static void tokenizer_free_cache_entry(SoftParserCacheEntry *entry) {
     if (entry == NULL) {
         return;
     }
@@ -35,7 +35,7 @@ static void soft_parser_free_cache_entry(SoftParserCacheEntry *entry) {
  * 토큰 배열을 복제해 캐시 소유권과 호출자 소유권을 분리한다.
  * 반환된 배열은 호출자가 소유한다.
  */
-static Token *soft_parser_clone_tokens(const Token *tokens, int token_count) {
+static Token *tokenizer_clone_tokens(const Token *tokens, int token_count) {
     Token *copy;
 
     if (tokens == NULL || token_count <= 0) {
@@ -44,7 +44,7 @@ static Token *soft_parser_clone_tokens(const Token *tokens, int token_count) {
 
     copy = (Token *)malloc((size_t)token_count * sizeof(Token));
     if (copy == NULL) {
-        fprintf(stderr, "Error: Failed to allocate memory for soft parser cache.\n");
+        fprintf(stderr, "Error: Failed to allocate memory for tokenizer cache.\n");
         return NULL;
     }
 
@@ -55,36 +55,36 @@ static Token *soft_parser_clone_tokens(const Token *tokens, int token_count) {
 /*
  * 캐시 크기 제한을 넘으면 가장 오래 안 쓰인 엔트리를 제거한다.
  */
-static void soft_parser_evict_oldest_cache_entry(void) {
+static void tokenizer_evict_oldest_cache_entry(void) {
     SoftParserCacheEntry *previous;
     SoftParserCacheEntry *entry;
 
-    if (soft_parser_cache_head == NULL) {
+    if (tokenizer_cache_head == NULL) {
         return;
     }
 
     previous = NULL;
-    entry = soft_parser_cache_head;
+    entry = tokenizer_cache_head;
     while (entry->next != NULL) {
         previous = entry;
         entry = entry->next;
     }
 
     if (previous == NULL) {
-        soft_parser_cache_head = NULL;
+        tokenizer_cache_head = NULL;
     } else {
         previous->next = NULL;
     }
 
-    soft_parser_free_cache_entry(entry);
-    soft_parser_cache_entry_count--;
+    tokenizer_free_cache_entry(entry);
+    tokenizer_cache_entry_count--;
 }
 
 /*
  * 정규화된 SQL 문자열을 파서 캐시에서 조회한다.
  * 성공 시 반환된 토큰 복제본은 호출자가 소유한다.
  */
-static Token *soft_parser_lookup_cache(const char *sql, int *token_count) {
+static Token *tokenizer_lookup_cache(const char *sql, int *token_count) {
     SoftParserCacheEntry *entry;
     SoftParserCacheEntry *previous;
     Token *copy;
@@ -94,22 +94,22 @@ static Token *soft_parser_lookup_cache(const char *sql, int *token_count) {
     }
 
     previous = NULL;
-    entry = soft_parser_cache_head;
+    entry = tokenizer_cache_head;
     while (entry != NULL) {
         if (strcmp(entry->sql, sql) == 0) {
             if (previous != NULL) {
                 previous->next = entry->next;
-                entry->next = soft_parser_cache_head;
-                soft_parser_cache_head = entry;
+                entry->next = tokenizer_cache_head;
+                tokenizer_cache_head = entry;
             }
 
-            copy = soft_parser_clone_tokens(entry->tokens, entry->token_count);
+            copy = tokenizer_clone_tokens(entry->tokens, entry->token_count);
             if (copy == NULL) {
                 return NULL;
             }
 
             *token_count = entry->token_count;
-            soft_parser_cache_hit_count++;
+            tokenizer_cache_hit_count++;
             return copy;
         }
 
@@ -124,7 +124,7 @@ static Token *soft_parser_lookup_cache(const char *sql, int *token_count) {
  * 파싱된 SQL 문 하나를 내부 캐시에 저장한다.
  * 캐시 저장은 부가 최적화이며 호출자 소유권은 이동하지 않는다.
  */
-static int soft_parser_store_cache(const char *sql, const Token *tokens,
+static int tokenizer_store_cache(const char *sql, const Token *tokens,
                                    int token_count) {
     SoftParserCacheEntry *entry;
 
@@ -134,7 +134,7 @@ static int soft_parser_store_cache(const char *sql, const Token *tokens,
 
     entry = (SoftParserCacheEntry *)calloc(1, sizeof(SoftParserCacheEntry));
     if (entry == NULL) {
-        fprintf(stderr, "Error: Failed to allocate memory for soft parser cache.\n");
+        fprintf(stderr, "Error: Failed to allocate memory for tokenizer cache.\n");
         return FAILURE;
     }
 
@@ -144,7 +144,7 @@ static int soft_parser_store_cache(const char *sql, const Token *tokens,
         return FAILURE;
     }
 
-    entry->tokens = soft_parser_clone_tokens(tokens, token_count);
+    entry->tokens = tokenizer_clone_tokens(tokens, token_count);
     if (entry->tokens == NULL) {
         free(entry->sql);
         free(entry);
@@ -152,12 +152,12 @@ static int soft_parser_store_cache(const char *sql, const Token *tokens,
     }
 
     entry->token_count = token_count;
-    entry->next = soft_parser_cache_head;
-    soft_parser_cache_head = entry;
-    soft_parser_cache_entry_count++;
+    entry->next = tokenizer_cache_head;
+    tokenizer_cache_head = entry;
+    tokenizer_cache_entry_count++;
 
-    if (soft_parser_cache_entry_count > SOFT_PARSER_CACHE_LIMIT) {
-        soft_parser_evict_oldest_cache_entry();
+    if (tokenizer_cache_entry_count > SOFT_PARSER_CACHE_LIMIT) {
+        tokenizer_evict_oldest_cache_entry();
     }
 
     return SUCCESS;
@@ -167,7 +167,7 @@ static int soft_parser_store_cache(const char *sql, const Token *tokens,
  * 늘어나는 토큰 배열에 토큰 하나를 추가한다.
  * tokens에 정상 저장되면 SUCCESS를 반환한다.
  */
-static int soft_parser_append_token(Token **tokens, int *count, int *capacity,
+static int tokenizer_append_token(Token **tokens, int *count, int *capacity,
                                     TokenType type, const char *value) {
     Token *new_tokens;
 
@@ -207,7 +207,7 @@ static int soft_parser_append_token(Token **tokens, int *count, int *capacity,
  * 현재 위치에서 식별자 또는 키워드 후보 하나를 읽는다.
  * 성공 시 index는 읽은 뒤 위치로 이동한다.
  */
-static int soft_parser_read_word(const char *sql, size_t *index, char *buffer,
+static int tokenizer_read_word(const char *sql, size_t *index, char *buffer,
                                  size_t buffer_size) {
     size_t length;
 
@@ -228,7 +228,7 @@ static int soft_parser_read_word(const char *sql, size_t *index, char *buffer,
  * 작은따옴표로 감싼 SQL 문자열 리터럴 하나를 읽는다.
  * 바깥 따옴표는 제외하고, 내부의 연속 작은따옴표 이스케이프도 처리한다.
  */
-static int soft_parser_read_string(const char *sql, size_t *index, char *buffer,
+static int tokenizer_read_string(const char *sql, size_t *index, char *buffer,
                                    size_t buffer_size) {
     size_t length;
 
@@ -263,7 +263,7 @@ static int soft_parser_read_string(const char *sql, size_t *index, char *buffer,
 /*
  * 부호를 포함할 수 있는 정수 리터럴 하나를 읽어 buffer에 복사한다.
  */
-static int soft_parser_read_number(const char *sql, size_t *index, char *buffer,
+static int tokenizer_read_number(const char *sql, size_t *index, char *buffer,
                                    size_t buffer_size) {
     size_t length;
 
@@ -291,7 +291,7 @@ static int soft_parser_read_number(const char *sql, size_t *index, char *buffer,
 /*
  * sql[index]가 정수 리터럴 시작이면 1, 아니면 0을 반환한다.
  */
-static int soft_parser_is_numeric_start(const char *sql, size_t index) {
+static int tokenizer_is_numeric_start(const char *sql, size_t index) {
     if (isdigit((unsigned char)sql[index])) {
         return 1;
     }
@@ -308,7 +308,7 @@ static int soft_parser_is_numeric_start(const char *sql, size_t index) {
  * 이미 trim된 SQL 문 하나를 새 토큰 배열로 분해한다.
  * 반환된 배열은 호출자가 소유한다.
  */
-static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
+static Token *tokenizer_tokenize_sql(const char *sql, int *token_count) {
     Token *tokens;
     int count;
     int capacity;
@@ -332,7 +332,7 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
         }
 
         if (sql[i] == '(') {
-            if (soft_parser_append_token(&tokens, &count, &capacity, TOKEN_LPAREN,
+            if (tokenizer_append_token(&tokens, &count, &capacity, TOKEN_LPAREN,
                                          "(") != SUCCESS) {
                 free(tokens);
                 return NULL;
@@ -342,7 +342,7 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
         }
 
         if (sql[i] == ')') {
-            if (soft_parser_append_token(&tokens, &count, &capacity, TOKEN_RPAREN,
+            if (tokenizer_append_token(&tokens, &count, &capacity, TOKEN_RPAREN,
                                          ")") != SUCCESS) {
                 free(tokens);
                 return NULL;
@@ -352,7 +352,7 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
         }
 
         if (sql[i] == ',') {
-            if (soft_parser_append_token(&tokens, &count, &capacity, TOKEN_COMMA,
+            if (tokenizer_append_token(&tokens, &count, &capacity, TOKEN_COMMA,
                                          ",") != SUCCESS) {
                 free(tokens);
                 return NULL;
@@ -362,7 +362,7 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
         }
 
         if (sql[i] == ';') {
-            if (soft_parser_append_token(&tokens, &count, &capacity,
+            if (tokenizer_append_token(&tokens, &count, &capacity,
                                          TOKEN_SEMICOLON, ";") != SUCCESS) {
                 free(tokens);
                 return NULL;
@@ -372,7 +372,7 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
         }
 
         if (sql[i] == '*') {
-            if (soft_parser_append_token(&tokens, &count, &capacity,
+            if (tokenizer_append_token(&tokens, &count, &capacity,
                                          TOKEN_IDENTIFIER, "*") != SUCCESS) {
                 free(tokens);
                 return NULL;
@@ -382,14 +382,14 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
         }
 
         if (sql[i] == '\'') {
-            if (soft_parser_read_string(sql, &i, token_buffer,
+            if (tokenizer_read_string(sql, &i, token_buffer,
                                         sizeof(token_buffer)) != SUCCESS) {
                 fprintf(stderr, "Error: Unterminated string literal.\n");
                 free(tokens);
                 return NULL;
             }
 
-            if (soft_parser_append_token(&tokens, &count, &capacity,
+            if (tokenizer_append_token(&tokens, &count, &capacity,
                                          TOKEN_STR_LITERAL, token_buffer) != SUCCESS) {
                 free(tokens);
                 return NULL;
@@ -409,7 +409,7 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
                 i++;
             }
 
-            if (soft_parser_append_token(&tokens, &count, &capacity,
+            if (tokenizer_append_token(&tokens, &count, &capacity,
                                          TOKEN_OPERATOR, token_buffer) != SUCCESS) {
                 free(tokens);
                 return NULL;
@@ -417,15 +417,15 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
             continue;
         }
 
-        if (soft_parser_is_numeric_start(sql, i)) {
-            if (soft_parser_read_number(sql, &i, token_buffer,
+        if (tokenizer_is_numeric_start(sql, i)) {
+            if (tokenizer_read_number(sql, &i, token_buffer,
                                         sizeof(token_buffer)) != SUCCESS) {
                 fprintf(stderr, "Error: Integer literal is too long.\n");
                 free(tokens);
                 return NULL;
             }
 
-            if (soft_parser_append_token(&tokens, &count, &capacity,
+            if (tokenizer_append_token(&tokens, &count, &capacity,
                                          TOKEN_INT_LITERAL, token_buffer) != SUCCESS) {
                 free(tokens);
                 return NULL;
@@ -434,7 +434,7 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
         }
 
         if (isalpha((unsigned char)sql[i]) || sql[i] == '_') {
-            if (soft_parser_read_word(sql, &i, token_buffer,
+            if (tokenizer_read_word(sql, &i, token_buffer,
                                       sizeof(token_buffer)) != SUCCESS) {
                 fprintf(stderr, "Error: Identifier is too long.\n");
                 free(tokens);
@@ -447,13 +447,13 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
                     free(tokens);
                     return NULL;
                 }
-                if (soft_parser_append_token(&tokens, &count, &capacity,
+                if (tokenizer_append_token(&tokens, &count, &capacity,
                                              TOKEN_KEYWORD, upper_buffer) != SUCCESS) {
                     free(tokens);
                     return NULL;
                 }
             } else {
-                if (soft_parser_append_token(&tokens, &count, &capacity,
+                if (tokenizer_append_token(&tokens, &count, &capacity,
                                              TOKEN_IDENTIFIER, token_buffer) != SUCCESS) {
                     free(tokens);
                     return NULL;
@@ -464,7 +464,7 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
 
         token_buffer[0] = sql[i];
         token_buffer[1] = '\0';
-        if (soft_parser_append_token(&tokens, &count, &capacity, TOKEN_UNKNOWN,
+        if (tokenizer_append_token(&tokens, &count, &capacity, TOKEN_UNKNOWN,
                                      token_buffer) != SUCCESS) {
             free(tokens);
             return NULL;
@@ -480,7 +480,7 @@ static Token *soft_parser_tokenize_sql(const char *sql, int *token_count) {
  * SQL 문 하나를 정규화한 뒤 가능하면 캐시를 재사용하고,
  * 호출자가 소유하는 토큰 배열을 반환한다.
  */
-Token *soft_parse(const char *sql, int *token_count) {
+Token *tokenizer_tokenize(const char *sql, int *token_count) {
     char *working_sql;
     Token *tokens;
     int parsed_token_count;
@@ -501,20 +501,20 @@ Token *soft_parse(const char *sql, int *token_count) {
         return NULL;
     }
 
-    tokens = soft_parser_lookup_cache(working_sql, token_count);
+    tokens = tokenizer_lookup_cache(working_sql, token_count);
     if (tokens != NULL) {
         free(working_sql);
         return tokens;
     }
 
-    tokens = soft_parser_tokenize_sql(working_sql, &parsed_token_count);
+    tokens = tokenizer_tokenize_sql(working_sql, &parsed_token_count);
     if (tokens == NULL) {
         free(working_sql);
         return NULL;
     }
 
     *token_count = parsed_token_count;
-    if (soft_parser_store_cache(working_sql, tokens, parsed_token_count) != SUCCESS) {
+    if (tokenizer_store_cache(working_sql, tokens, parsed_token_count) != SUCCESS) {
         /* 파싱 자체는 성공했으므로 캐시 저장 실패는 치명 오류로 보지 않는다. */
     }
 
@@ -525,40 +525,40 @@ Token *soft_parse(const char *sql, int *token_count) {
 /*
  * 캐시에 저장된 토큰화 결과를 모두 해제하고 캐시 통계도 초기화한다.
  */
-void soft_parser_cleanup_cache(void) {
+void tokenizer_cleanup_cache(void) {
     SoftParserCacheEntry *entry;
     SoftParserCacheEntry *next;
 
-    entry = soft_parser_cache_head;
+    entry = tokenizer_cache_head;
     while (entry != NULL) {
         next = entry->next;
-        soft_parser_free_cache_entry(entry);
+        tokenizer_free_cache_entry(entry);
         entry = next;
     }
 
-    soft_parser_cache_head = NULL;
-    soft_parser_cache_entry_count = 0;
-    soft_parser_cache_hit_count = 0;
+    tokenizer_cache_head = NULL;
+    tokenizer_cache_entry_count = 0;
+    tokenizer_cache_hit_count = 0;
 }
 
 /*
  * 현재 파서 캐시에 저장된 SQL 문 개수를 반환한다.
  */
-int soft_parser_get_cache_entry_count(void) {
-    return soft_parser_cache_entry_count;
+int tokenizer_get_cache_entry_count(void) {
+    return tokenizer_cache_entry_count;
 }
 
 /*
  * 마지막 캐시 정리 이후 발생한 파서 캐시 히트 수를 반환한다.
  */
-int soft_parser_get_cache_hit_count(void) {
-    return soft_parser_cache_hit_count;
+int tokenizer_get_cache_hit_count(void) {
+    return tokenizer_cache_hit_count;
 }
 
 /*
  * 토큰 타입 enum 값을 디버깅이나 테스트용 문자열로 바꾼다.
  */
-const char *soft_parser_token_type_name(TokenType type) {
+const char *tokenizer_token_type_name(TokenType type) {
     switch (type) {
         case TOKEN_KEYWORD:
             return "KEYWORD";

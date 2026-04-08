@@ -1,7 +1,7 @@
 #ifndef EXECUTOR_H
 #define EXECUTOR_H
 
-#include "hard_parser.h"
+#include "parser.h"
 
 /*
  * 파싱이 끝난 SQL 문 하나를 실행한다.

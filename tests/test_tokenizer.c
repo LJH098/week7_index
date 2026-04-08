@@ -1,4 +1,4 @@
-#include "soft_parser.h"
+#include "tokenizer.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,13 +16,13 @@ int main(void) {
     Token *tokens;
     int token_count;
 
-    soft_parser_cleanup_cache();
+    tokenizer_cleanup_cache();
 
-    tokens = soft_parse(
+    tokens = tokenizer_tokenize(
         "insert INTO users (id, name, age) VALUES (1, 'Lee, Jr.', 30);",
         &token_count);
-    if (assert_true(tokens != NULL, "soft_parse should return tokens") != SUCCESS ||
-        assert_true(token_count == 19, "soft_parse should tokenize full INSERT") != SUCCESS ||
+    if (assert_true(tokens != NULL, "tokenizer_tokenize should return tokens") != SUCCESS ||
+        assert_true(token_count == 19, "tokenizer_tokenize should tokenize full INSERT") != SUCCESS ||
         assert_true(tokens[0].type == TOKEN_KEYWORD &&
                         strcmp(tokens[0].value, "INSERT") == 0,
                     "INSERT should be normalized to keyword") != SUCCESS ||
@@ -36,8 +36,8 @@ int main(void) {
     }
     free(tokens);
 
-    tokens = soft_parse("Select * FROM users WHERE age >= 27;", &token_count);
-    if (assert_true(tokens != NULL, "soft_parse should support SELECT") != SUCCESS ||
+    tokens = tokenizer_tokenize("Select * FROM users WHERE age >= 27;", &token_count);
+    if (assert_true(tokens != NULL, "tokenizer_tokenize should support SELECT") != SUCCESS ||
         assert_true(token_count == 9, "SELECT token count should match") != SUCCESS ||
         assert_true(tokens[1].type == TOKEN_IDENTIFIER &&
                         strcmp(tokens[1].value, "*") == 0,
@@ -50,8 +50,8 @@ int main(void) {
     }
     free(tokens);
 
-    tokens = soft_parse("DELETE FROM users WHERE name = 'Alice';", &token_count);
-    if (assert_true(tokens != NULL, "soft_parse should support DELETE") != SUCCESS ||
+    tokens = tokenizer_tokenize("DELETE FROM users WHERE name = 'Alice';", &token_count);
+    if (assert_true(tokens != NULL, "tokenizer_tokenize should support DELETE") != SUCCESS ||
         assert_true(token_count == 8, "DELETE token count should match") != SUCCESS ||
         assert_true(tokens[0].type == TOKEN_KEYWORD &&
                         strcmp(tokens[0].value, "DELETE") == 0,
@@ -64,34 +64,34 @@ int main(void) {
     }
     free(tokens);
 
-    if (assert_true(soft_parser_get_cache_entry_count() == 3,
+    if (assert_true(tokenizer_get_cache_entry_count() == 3,
                     "three unique statements should be cached") != SUCCESS ||
-        assert_true(soft_parser_get_cache_hit_count() == 0,
+        assert_true(tokenizer_get_cache_hit_count() == 0,
                     "cache hit count should still be zero before reuse") != SUCCESS) {
-        soft_parser_cleanup_cache();
+        tokenizer_cleanup_cache();
         return EXIT_FAILURE;
     }
 
-    tokens = soft_parse("Select * FROM users WHERE age >= 27;", &token_count);
+    tokens = tokenizer_tokenize("Select * FROM users WHERE age >= 27;", &token_count);
     if (assert_true(tokens != NULL, "cached parse should still return tokens") != SUCCESS ||
-        assert_true(soft_parser_get_cache_entry_count() == 3,
+        assert_true(tokenizer_get_cache_entry_count() == 3,
                     "cache size should stay stable on repeated SQL") != SUCCESS ||
-        assert_true(soft_parser_get_cache_hit_count() == 1,
+        assert_true(tokenizer_get_cache_hit_count() == 1,
                     "repeated SQL should produce a cache hit") != SUCCESS) {
         free(tokens);
-        soft_parser_cleanup_cache();
+        tokenizer_cleanup_cache();
         return EXIT_FAILURE;
     }
     free(tokens);
 
-    soft_parser_cleanup_cache();
-    if (assert_true(soft_parser_get_cache_entry_count() == 0,
+    tokenizer_cleanup_cache();
+    if (assert_true(tokenizer_get_cache_entry_count() == 0,
                     "cache cleanup should release stored statements") != SUCCESS ||
-        assert_true(soft_parser_get_cache_hit_count() == 0,
+        assert_true(tokenizer_get_cache_hit_count() == 0,
                     "cache cleanup should reset hit count") != SUCCESS) {
         return EXIT_FAILURE;
     }
 
-    puts("[PASS] soft parser");
+    puts("[PASS] tokenizer");
     return EXIT_SUCCESS;
 }

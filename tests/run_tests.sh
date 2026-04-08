@@ -38,7 +38,7 @@ run_sql_test() {
     fi
 }
 
-for binary in build/tests/test_soft_parser build/tests/test_hard_parser \
+for binary in build/tests/test_tokenizer build/tests/test_parser \
               build/tests/test_storage build/tests/test_executor
 do
     run_unit_test "$binary"
