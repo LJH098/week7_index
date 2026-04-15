@@ -9,4 +9,9 @@
  */
 int executor_execute(const SqlStatement *statement);
 
+/*
+ * executor가 유지하는 인메모리 런타임을 정리한다.
+ */
+void executor_cleanup(void);
+
 #endif

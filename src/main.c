@@ -1,16 +1,17 @@
+#include "benchmark.h"
 #include "executor.h"
 #include "parser.h"
 #include "tokenizer.h"
 #include "utils.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 /*
  * 문자열에서 연속된 공백을 건너뛰고 다음 유효 위치를 찾는다.
- * 반환값은 SQL 문이 시작될 수 있는 다음 인덱스다.
  */
 static size_t main_skip_whitespace(const char *text, size_t index) {
     while (text[index] != '\0' && isspace((unsigned char)text[index])) {
@@ -21,7 +22,6 @@ static size_t main_skip_whitespace(const char *text, size_t index) {
 
 /*
  * 완전한 SQL 문 하나를 파싱하고 실행한다.
- * 빈 문장이거나 정상 실행되면 SUCCESS를 반환한다.
  */
 static int main_process_sql_statement(const char *sql) {
     Token *tokens;
@@ -64,7 +64,6 @@ static int main_process_sql_statement(const char *sql) {
 
 /*
  * `.sql` 파일을 읽어 세미콜론 기준으로 문장을 나눈 뒤 순서대로 실행한다.
- * 파일 읽기나 내부 메모리 할당에 실패하지 않으면 SUCCESS를 반환한다.
  */
 static int main_run_file_mode(const char *path) {
     char *content;
@@ -118,7 +117,6 @@ static int main_run_file_mode(const char *path) {
 
 /*
  * 한 줄 입력을 공백 제거 후 제어 키워드와 비교한다.
- * 일치하면 1, 아니면 0을 반환한다.
  */
 static int main_trimmed_equals(const char *line, const char *keyword) {
     char *copy;
@@ -136,8 +134,35 @@ static int main_trimmed_equals(const char *line, const char *keyword) {
 }
 
 /*
+ * 첫 번째 인자가 benchmark 모드 키워드인지 확인한다.
+ */
+static int main_is_benchmark_mode(const char *arg) {
+    return arg != NULL &&
+           (utils_equals_ignore_case(arg, "--benchmark") ||
+            utils_equals_ignore_case(arg, "benchmark"));
+}
+
+/*
+ * benchmark 행 수 인자를 양의 정수로 파싱한다.
+ */
+static int main_parse_benchmark_row_count(const char *text, int *row_count) {
+    long long parsed_value;
+
+    if (text == NULL || row_count == NULL || !utils_is_integer(text)) {
+        return FAILURE;
+    }
+
+    parsed_value = utils_parse_integer(text);
+    if (parsed_value <= 0 || parsed_value > INT_MAX) {
+        return FAILURE;
+    }
+
+    *row_count = (int)parsed_value;
+    return SUCCESS;
+}
+
+/*
  * REPL 버퍼에서 처리한 SQL 문을 제거하고 남은 문자열만 유지한다.
- * 성공 시 갱신된 버퍼 소유권은 계속 호출자에게 있다.
  */
 static int main_replace_buffer_with_remainder(char **buffer, size_t *length,
                                               size_t *capacity, int end_index) {
@@ -164,7 +189,6 @@ static int main_replace_buffer_with_remainder(char **buffer, size_t *length,
 
 /*
  * 사용자가 종료하거나 EOF가 올 때까지 대화형 SQL 셸을 실행한다.
- * 정상 종료면 SUCCESS, 메모리 할당 실패면 FAILURE를 반환한다.
  */
 static int main_run_repl_mode(void) {
     char line[MAX_SQL_LENGTH];
@@ -232,23 +256,37 @@ static int main_run_repl_mode(void) {
 }
 
 /*
- * argv에 따라 파일 모드 또는 REPL 모드를 선택하고 종료 전에 파서 캐시를 정리한다.
- * 정상 종료면 EXIT_SUCCESS, 아니면 EXIT_FAILURE를 반환한다.
+ * argv에 따라 파일 모드, benchmark 모드, REPL 모드를 선택한다.
  */
 int main(int argc, char *argv[]) {
     int status;
+    int benchmark_rows;
 
-    if (argc > 2) {
-        fprintf(stderr, "Usage: %s [sql_file]\n", argv[0]);
+    if (argc > 3) {
+        fprintf(stderr, "Usage: %s [sql_file] | %s --benchmark [row_count]\n",
+                argv[0], argv[0]);
         return EXIT_FAILURE;
     }
 
-    if (argc == 2) {
+    if (argc >= 2 && main_is_benchmark_mode(argv[1])) {
+        benchmark_rows = 0;
+        if (argc == 3 &&
+            main_parse_benchmark_row_count(argv[2], &benchmark_rows) != SUCCESS) {
+            fprintf(stderr, "Error: Invalid benchmark row count.\n");
+            return EXIT_FAILURE;
+        }
+        status = benchmark_run(benchmark_rows);
+    } else if (argc == 2) {
         status = main_run_file_mode(argv[1]);
+    } else if (argc == 3) {
+        fprintf(stderr, "Usage: %s [sql_file] | %s --benchmark [row_count]\n",
+                argv[0], argv[0]);
+        return EXIT_FAILURE;
     } else {
         status = main_run_repl_mode();
     }
 
+    executor_cleanup();
     tokenizer_cleanup_cache();
     return status == SUCCESS ? EXIT_SUCCESS : EXIT_FAILURE;
 }
