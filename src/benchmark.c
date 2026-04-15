@@ -25,6 +25,7 @@ typedef enum
 typedef struct
 {
     const char *label;
+    int query_count;
     double bptree_ms;
     double linear_scan_ms;
 } BenchmarkLookupResult;
@@ -293,6 +294,7 @@ static int benchmark_pick_lookup_index(const BenchmarkConfig *config,
 static int benchmark_build_lookup_keys(const BenchmarkConfig *config,
                                        const int *inserted_ids,
                                        BenchmarkLookupCase lookup_case,
+                                       int query_count,
                                        int *lookup_keys)
 {
     unsigned int random_state;
@@ -300,13 +302,13 @@ static int benchmark_build_lookup_keys(const BenchmarkConfig *config,
     int random_index;
 
     if (config == NULL || inserted_ids == NULL || lookup_keys == NULL ||
-        config->row_count <= 0 || config->query_count <= 0)
+        config->row_count <= 0 || query_count <= 0)
     {
         return FAILURE;
     }
 
     random_state = 0x00C0FFEEu;
-    for (i = 0; i < config->query_count; i++)
+    for (i = 0; i < query_count; i++)
     {
         switch (lookup_case)
         {
@@ -328,6 +330,25 @@ static int benchmark_build_lookup_keys(const BenchmarkConfig *config,
     }
 
     return SUCCESS;
+}
+
+/*
+ * lookup case별 실제 측정 query 수를 반환한다.
+ */
+static int benchmark_query_count_for_case(const BenchmarkConfig *config,
+                                          BenchmarkLookupCase lookup_case)
+{
+    if (config == NULL || config->query_count <= 0)
+    {
+        return 0;
+    }
+
+    if (lookup_case == BENCHMARK_LOOKUP_WORST)
+    {
+        return 1;
+    }
+
+    return config->query_count;
 }
 
 /*
@@ -392,6 +413,7 @@ static int benchmark_measure_id_lookup(const BenchmarkConfig *config,
                                        const TableRuntime *table,
                                        BPTreeNode *id_index_root,
                                        const int *lookup_keys,
+                                       int query_count,
                                        double *elapsed_ms)
 {
     int row_index;
@@ -407,7 +429,7 @@ static int benchmark_measure_id_lookup(const BenchmarkConfig *config,
     }
 
     start = clock();
-    for (i = 0; i < config->query_count; i++)
+    for (i = 0; i < query_count; i++)
     {
         key = lookup_keys[i];
         if (bptree_search(id_index_root, key, &row_index) != SUCCESS)
@@ -431,6 +453,7 @@ static int benchmark_measure_id_lookup(const BenchmarkConfig *config,
 static int benchmark_measure_id_linear_scan(const BenchmarkConfig *config,
                                             const TableRuntime *table,
                                             const int *lookup_keys,
+                                            int query_count,
                                             double *elapsed_ms)
 {
     int i;
@@ -446,7 +469,7 @@ static int benchmark_measure_id_linear_scan(const BenchmarkConfig *config,
     }
 
     start = clock();
-    for (i = 0; i < config->query_count; i++)
+    for (i = 0; i < query_count; i++)
     {
         key = lookup_keys[i];
         if (benchmark_find_row_index_by_id_linear(table, key, &row_index) != SUCCESS)
@@ -484,6 +507,7 @@ int benchmark_run(const BenchmarkConfig *config)
     BenchmarkLookupResult lookup_results[3];
     BenchmarkLookupCase lookup_cases[3];
     int lookup_case_count;
+    int lookup_query_count;
     int i;
 
     active_config = config == NULL ? benchmark_default_config() : *config;
@@ -506,6 +530,7 @@ int benchmark_run(const BenchmarkConfig *config)
     lookup_results[2].label = "random-case";
     for (i = 0; i < lookup_case_count; i++)
     {
+        lookup_results[i].query_count = 0;
         lookup_results[i].bptree_ms = 0.0;
         lookup_results[i].linear_scan_ms = 0.0;
     }
@@ -536,8 +561,12 @@ int benchmark_run(const BenchmarkConfig *config)
 
     for (i = 0; i < lookup_case_count; i++)
     {
+        lookup_query_count =
+            benchmark_query_count_for_case(&active_config, lookup_cases[i]);
+        lookup_results[i].query_count = lookup_query_count;
         if (benchmark_build_lookup_keys(&active_config, inserted_ids,
-                                        lookup_cases[i], lookup_keys) != SUCCESS)
+                                        lookup_cases[i], lookup_query_count,
+                                        lookup_keys) != SUCCESS)
         {
             free(lookup_keys);
             free(inserted_ids);
@@ -547,6 +576,7 @@ int benchmark_run(const BenchmarkConfig *config)
 
         if (benchmark_measure_id_lookup(&active_config, &indexed_table,
                                         indexed_table.id_index_root, lookup_keys,
+                                        lookup_query_count,
                                         &lookup_results[i].bptree_ms) != SUCCESS)
         {
             free(lookup_keys);
@@ -555,7 +585,7 @@ int benchmark_run(const BenchmarkConfig *config)
             return FAILURE;
         }
         if (benchmark_measure_id_linear_scan(&active_config, &indexed_table,
-                                             lookup_keys,
+                                             lookup_keys, lookup_query_count,
                                              &lookup_results[i].linear_scan_ms) != SUCCESS)
         {
             free(lookup_keys);
@@ -572,6 +602,8 @@ int benchmark_run(const BenchmarkConfig *config)
     printf("Insert without id index: %.3f ms\n", plain_insert_ms);
     for (i = 0; i < lookup_case_count; i++)
     {
+        printf("%s queries: %d\n",
+               lookup_results[i].label, lookup_results[i].query_count);
         printf("%s b+ tree lookup: %.3f ms\n",
                lookup_results[i].label, lookup_results[i].bptree_ms);
         printf("%s linear scan lookup: %.3f ms\n",
