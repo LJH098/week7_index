@@ -9,8 +9,8 @@
 #include <string.h>
 #include <sys/time.h>
 
-#define BENCHMARK_ROW_COUNT 100000
-#define BENCHMARK_SELECT_REPEAT 1000
+#define BENCHMARK_BASE_ROW_COUNT 1000000
+#define BENCHMARK_MEASURE_REPEAT 1000
 #define BENCHMARK_NO_INDEX_COL_COUNT 2
 
 /*
@@ -25,6 +25,18 @@ static double benchmark_now_ms(void) {
     }
 
     return (double)tv.tv_sec * 1000.0 + (double)tv.tv_usec / 1000.0;
+}
+
+/*
+ * 총 측정 시간을 연산 횟수로 나눠 1회당 평균 밀리초를 계산하는 함수다.
+ * 삽입/조회 benchmark 결과를 총합이 아니라 평균 latency 형태로 출력할 때 사용한다.
+ */
+static double benchmark_average_ms(double total_ms, int operation_count) {
+    if (operation_count <= 0) {
+        return 0.0;
+    }
+
+    return total_ms / (double)operation_count;
 }
 
 /*
@@ -197,6 +209,71 @@ static int benchmark_prepare_runtime_table(TableRuntime *table, const char *tabl
 }
 
 /*
+ * 이미 준비한 인덱스 없는 행 배열에 count개 baseline 행을 미리 채우는 함수다.
+ * 본 측정 전에 100만 건 데이터 상태를 만들어 append 비용을 큰 테이블 기준으로 비교한다.
+ */
+static int benchmark_preload_rows_without_index(char ****rows, int *row_count,
+                                                int *capacity, int count) {
+    char value_buffer[MAX_VALUE_LEN];
+    int i;
+
+    if (rows == NULL || row_count == NULL || capacity == NULL || count < 0) {
+        return FAILURE;
+    }
+
+    for (i = 1; i <= count; i++) {
+        if (benchmark_generate_row_value(value_buffer, sizeof(value_buffer), i) != SUCCESS ||
+            benchmark_append_row_without_index(rows, row_count, capacity, i,
+                                               value_buffer) != SUCCESS) {
+            return FAILURE;
+        }
+    }
+
+    return SUCCESS;
+}
+
+/*
+ * 메모리 런타임 테이블에 count개 baseline 행을 미리 삽입하는 함수다.
+ * 이후 1000회 추가 삽입과 1000회 조회를 100만 건 규모의 실제 상태에서 측정하게 한다.
+ */
+static int benchmark_preload_indexed_table(TableRuntime *table, const char *table_name,
+                                           int count) {
+    InsertStatement stmt;
+    char value_buffer[MAX_VALUE_LEN];
+    int i;
+
+    if (table == NULL || table_name == NULL || count < 0) {
+        return FAILURE;
+    }
+
+    for (i = 1; i <= count; i++) {
+        if (benchmark_generate_row_value(value_buffer, sizeof(value_buffer), i) != SUCCESS ||
+            benchmark_prepare_insert_statement(&stmt, table_name, value_buffer) != SUCCESS ||
+            table_insert_row(table, &stmt, NULL, NULL) != SUCCESS) {
+            return FAILURE;
+        }
+    }
+
+    return SUCCESS;
+}
+
+/*
+ * 1000회 조회가 데이터 전 범위에 고르게 퍼지도록 목표 row 번호를 계산하는 함수다.
+ * 앞쪽 일부 row만 반복 조회하는 편향을 줄이기 위해 전체 row_count를 균등하게 샘플링한다.
+ */
+static int benchmark_pick_target_row_number(int iteration, int total_row_count) {
+    long long scaled_index;
+
+    if (total_row_count <= 0) {
+        return FAILURE;
+    }
+
+    scaled_index = ((long long)iteration * (long long)total_row_count) /
+                   (long long)BENCHMARK_MEASURE_REPEAT;
+    return (int)scaled_index + 1;
+}
+
+/*
  * 벤치마크용 일반 필드 값을 행 번호 기반 문자열로 생성하는 함수다.
  * 현재 구현은 `user_000001` 형태를 사용해 선형 탐색 목표 값을 쉽게 재현한다.
  */
@@ -217,7 +294,7 @@ int benchmark_generate_row_value(char *buffer, size_t buffer_size, int row_numbe
 
 /*
  * 메모리 기준 삽입/검색 성능 비교를 한 번에 실행하는 함수다.
- * 인덱스 없는 삽입, B+ 트리 포함 삽입, id 검색, 일반 필드 선형 탐색 시간을 차례대로 측정한다.
+ * 100만 건 baseline 데이터 위에서 1000회 삽입/조회 평균 시간을 차례대로 측정한다.
  */
 int benchmark_run(void) {
     char ***rows_without_index;
@@ -236,6 +313,8 @@ int benchmark_run(void) {
     int row_index;
     int *matches;
     int match_count;
+    int target_row_number;
+    int total_row_count;
     int status;
 
     rows_without_index = NULL;
@@ -243,26 +322,45 @@ int benchmark_run(void) {
     capacity_without_index = 0;
     matches = NULL;
     status = FAILURE;
+    table_init(&indexed_table);
 
-    if (benchmark_prepare_runtime_table(&indexed_table, "benchmark_users") != SUCCESS) {
-        return FAILURE;
+    if (benchmark_preload_rows_without_index(&rows_without_index, &row_count_without_index,
+                                             &capacity_without_index,
+                                             BENCHMARK_BASE_ROW_COUNT) != SUCCESS) {
+        goto cleanup;
     }
 
     start_ms = benchmark_now_ms();
-    for (i = 1; i <= BENCHMARK_ROW_COUNT; i++) {
-        if (benchmark_generate_row_value(value_buffer, sizeof(value_buffer), i) != SUCCESS ||
+    for (i = 1; i <= BENCHMARK_MEASURE_REPEAT; i++) {
+        target_row_number = BENCHMARK_BASE_ROW_COUNT + i;
+        if (benchmark_generate_row_value(value_buffer, sizeof(value_buffer),
+                                         target_row_number) != SUCCESS ||
             benchmark_append_row_without_index(&rows_without_index, &row_count_without_index,
-                                               &capacity_without_index, i,
+                                               &capacity_without_index, target_row_number,
                                                value_buffer) != SUCCESS) {
             goto cleanup;
         }
     }
     end_ms = benchmark_now_ms();
-    insert_without_index_ms = end_ms - start_ms;
+    insert_without_index_ms = benchmark_average_ms(end_ms - start_ms,
+                                                   BENCHMARK_MEASURE_REPEAT);
+
+    benchmark_free_rows(rows_without_index, row_count_without_index);
+    rows_without_index = NULL;
+    row_count_without_index = 0;
+    capacity_without_index = 0;
+
+    if (benchmark_prepare_runtime_table(&indexed_table, "benchmark_users") != SUCCESS ||
+        benchmark_preload_indexed_table(&indexed_table, "benchmark_users",
+                                        BENCHMARK_BASE_ROW_COUNT) != SUCCESS) {
+        goto cleanup;
+    }
 
     start_ms = benchmark_now_ms();
-    for (i = 1; i <= BENCHMARK_ROW_COUNT; i++) {
-        if (benchmark_generate_row_value(value_buffer, sizeof(value_buffer), i) != SUCCESS ||
+    for (i = 1; i <= BENCHMARK_MEASURE_REPEAT; i++) {
+        target_row_number = BENCHMARK_BASE_ROW_COUNT + i;
+        if (benchmark_generate_row_value(value_buffer, sizeof(value_buffer),
+                                         target_row_number) != SUCCESS ||
             benchmark_prepare_insert_statement(&stmt, "benchmark_users",
                                               value_buffer) != SUCCESS ||
             table_insert_row(&indexed_table, &stmt, NULL, NULL) != SUCCESS) {
@@ -270,11 +368,19 @@ int benchmark_run(void) {
         }
     }
     end_ms = benchmark_now_ms();
-    insert_with_index_ms = end_ms - start_ms;
+    insert_with_index_ms = benchmark_average_ms(end_ms - start_ms,
+                                                BENCHMARK_MEASURE_REPEAT);
 
+    total_row_count = BENCHMARK_BASE_ROW_COUNT + BENCHMARK_MEASURE_REPEAT;
     start_ms = benchmark_now_ms();
-    for (i = 0; i < BENCHMARK_SELECT_REPEAT; i++) {
-        long long target_id = (long long)(i % BENCHMARK_ROW_COUNT) + 1;
+    for (i = 0; i < BENCHMARK_MEASURE_REPEAT; i++) {
+        long long target_id;
+
+        target_row_number = benchmark_pick_target_row_number(i, total_row_count);
+        if (target_row_number == FAILURE) {
+            goto cleanup;
+        }
+        target_id = (long long)target_row_number;
 
         if (bptree_search(indexed_table.id_index_root, target_id, &row_index) != SUCCESS ||
             table_get_row_by_slot(&indexed_table, row_index) == NULL) {
@@ -282,12 +388,15 @@ int benchmark_run(void) {
         }
     }
     end_ms = benchmark_now_ms();
-    select_by_id_ms = end_ms - start_ms;
+    select_by_id_ms = benchmark_average_ms(end_ms - start_ms,
+                                           BENCHMARK_MEASURE_REPEAT);
 
     start_ms = benchmark_now_ms();
-    for (i = 0; i < BENCHMARK_SELECT_REPEAT; i++) {
-        int target_row_number = (i % BENCHMARK_ROW_COUNT) + 1;
-
+    for (i = 0; i < BENCHMARK_MEASURE_REPEAT; i++) {
+        target_row_number = benchmark_pick_target_row_number(i, total_row_count);
+        if (target_row_number == FAILURE) {
+            goto cleanup;
+        }
         if (benchmark_generate_row_value(value_buffer, sizeof(value_buffer),
                                          target_row_number) != SUCCESS) {
             goto cleanup;
@@ -309,15 +418,17 @@ int benchmark_run(void) {
         matches = NULL;
     }
     end_ms = benchmark_now_ms();
-    select_by_scan_ms = end_ms - start_ms;
+    select_by_scan_ms = benchmark_average_ms(end_ms - start_ms,
+                                             BENCHMARK_MEASURE_REPEAT);
 
     printf("=== Memory Benchmark ===\n");
-    printf("rows: %d\n", BENCHMARK_ROW_COUNT);
-    printf("select_repeats: %d\n", BENCHMARK_SELECT_REPEAT);
-    printf("insert_without_index: %.3f ms\n", insert_without_index_ms);
-    printf("insert_with_bptree_index: %.3f ms\n", insert_with_index_ms);
-    printf("select_by_id_with_index: %.3f ms\n", select_by_id_ms);
-    printf("select_by_other_field_linear_scan: %.3f ms\n", select_by_scan_ms);
+    printf("base_rows: %d\n", BENCHMARK_BASE_ROW_COUNT);
+    printf("measured_ops: %d\n", BENCHMARK_MEASURE_REPEAT);
+    printf("insert_without_index_avg: %.6f ms/op\n", insert_without_index_ms);
+    printf("insert_with_bptree_index_avg: %.6f ms/op\n", insert_with_index_ms);
+    printf("select_by_id_with_index_avg: %.6f ms/op\n", select_by_id_ms);
+    printf("select_by_other_field_linear_scan_avg: %.6f ms/op\n",
+           select_by_scan_ms);
 
     status = SUCCESS;
 
