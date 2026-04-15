@@ -334,18 +334,13 @@ int bptree_split_internal(BPTreeNode **root, BPTreeNode *node) {
 
 /*
  * key가 이미 있으면 거부하고, 없으면 해당 리프까지 내려가 삽입과 분할을 수행하는 함수다.
- * 트리가 비어 있으면 첫 리프 노드를 곧바로 루트로 생성한다.
+ * 리프를 한 번만 찾은 뒤 그 안에서 중복 key를 검사해 불필요한 중복 탐색을 피한다.
  */
 int bptree_insert(BPTreeNode **root, long long key, int row_index) {
     BPTreeNode *leaf;
-    int existing_row_index;
+    int i;
 
     if (root == NULL) {
-        return FAILURE;
-    }
-
-    if (bptree_search(*root, key, &existing_row_index) == SUCCESS) {
-        fprintf(stderr, "Error: Duplicate B+ tree key %lld.\n", key);
         return FAILURE;
     }
 
@@ -361,17 +356,14 @@ int bptree_insert(BPTreeNode **root, long long key, int row_index) {
         leaf = *root;
     }
 
-    leaf = bptree_find_leaf(*root, key);
-    if (leaf != NULL) {
-        for (int i = 0; i < leaf->key_count; i++) {
-            if (leaf->keys[i] == key) {
-                fprintf(stderr, "Error: Duplicate B+ tree key %lld.\n", key);
-                return FAILURE;
-            }
+    for (i = 0; i < leaf->key_count; i++) {
+        if (leaf->keys[i] == key) {
+            fprintf(stderr, "Error: Duplicate B+ tree key %lld.\n", key);
+            return FAILURE;
         }
-    } else {
-        leaf = *root;
     }
+
+    if (bptree_insert_into_leaf(leaf, key, row_index) != SUCCESS) {
         return FAILURE;
     }
 
