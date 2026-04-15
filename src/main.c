@@ -1,5 +1,7 @@
+#include "benchmark.h"
 #include "executor.h"
 #include "parser.h"
+#include "table_runtime.h"
 #include "tokenizer.h"
 #include "utils.h"
 
@@ -239,16 +241,22 @@ int main(int argc, char *argv[]) {
     int status;
 
     if (argc > 2) {
-        fprintf(stderr, "Usage: %s [sql_file]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [sql_file|--benchmark|benchmark]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    if (argc == 2) {
+    if (argc == 2 &&
+        (utils_equals_ignore_case(argv[1], "--benchmark") ||
+         utils_equals_ignore_case(argv[1], "benchmark"))) {
+        BenchmarkConfig config = benchmark_default_config();
+        status = benchmark_run(&config);
+    } else if (argc == 2) {
         status = main_run_file_mode(argv[1]);
     } else {
         status = main_run_repl_mode();
     }
 
+    table_runtime_cleanup();
     tokenizer_cleanup_cache();
     return status == SUCCESS ? EXIT_SUCCESS : EXIT_FAILURE;
 }
