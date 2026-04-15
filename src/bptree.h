@@ -3,9 +3,10 @@
 
 #include "utils.h"
 
-#define BPTREE_MAX_KEYS 3
+#define BPTREE_MAX_KEYS 31
 
-typedef struct BPTreeNode {
+typedef struct BPTreeNode
+{
     int is_leaf;
     int key_count;
     int keys[BPTREE_MAX_KEYS];
