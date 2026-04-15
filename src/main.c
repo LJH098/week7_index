@@ -1,5 +1,6 @@
 #include "executor.h"
 #include "parser.h"
+#include "table_runtime.h"
 #include "tokenizer.h"
 #include "utils.h"
 
@@ -249,6 +250,7 @@ int main(int argc, char *argv[]) {
         status = main_run_repl_mode();
     }
 
+    table_runtime_cleanup();
     tokenizer_cleanup_cache();
     return status == SUCCESS ? EXIT_SUCCESS : EXIT_FAILURE;
 }
