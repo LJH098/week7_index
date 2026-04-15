@@ -1,5 +1,7 @@
+#include "benchmark.h"
 #include "executor.h"
 #include "parser.h"
+#include "table_runtime.h"
 #include "tokenizer.h"
 #include "utils.h"
 
@@ -136,6 +138,18 @@ static int main_trimmed_equals(const char *line, const char *keyword) {
 }
 
 /*
+ * 명령행 인자가 benchmark 실행 모드인지 검사하는 함수다.
+ * `--benchmark`와 `benchmark` 두 형태를 모두 허용해 진입 장벽을 낮춘다.
+ */
+static int main_is_benchmark_mode(const char *arg) {
+    if (arg == NULL) {
+        return 0;
+    }
+
+    return strcmp(arg, "--benchmark") == 0 || strcmp(arg, "benchmark") == 0;
+}
+
+/*
  * REPL 버퍼에서 처리한 SQL 문을 제거하고 남은 문자열만 유지한다.
  * 성공 시 갱신된 버퍼 소유권은 계속 호출자에게 있다.
  */
@@ -232,23 +246,26 @@ static int main_run_repl_mode(void) {
 }
 
 /*
- * argv에 따라 파일 모드 또는 REPL 모드를 선택하고 종료 전에 파서 캐시를 정리한다.
+ * argv에 따라 benchmark, 파일 모드, REPL 모드를 선택하고 종료 전에 공용 정리를 수행한다.
  * 정상 종료면 EXIT_SUCCESS, 아니면 EXIT_FAILURE를 반환한다.
  */
 int main(int argc, char *argv[]) {
     int status;
 
     if (argc > 2) {
-        fprintf(stderr, "Usage: %s [sql_file]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [sql_file|--benchmark]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    if (argc == 2) {
+    if (argc == 2 && main_is_benchmark_mode(argv[1])) {
+        status = benchmark_run();
+    } else if (argc == 2) {
         status = main_run_file_mode(argv[1]);
     } else {
         status = main_run_repl_mode();
     }
 
     tokenizer_cleanup_cache();
+    table_runtime_cleanup();
     return status == SUCCESS ? EXIT_SUCCESS : EXIT_FAILURE;
 }
