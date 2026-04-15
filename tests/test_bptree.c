@@ -16,6 +16,22 @@ static int assert_true(int condition, const char *message) {
 }
 
 /*
+ * 현재 B+ 트리 설정에서 첫 리프 분할을 강제로 일으키는 최소 삽입 개수를 계산하는 함수다.
+ * 리프 최대 key 수를 하나 넘기는 순간 첫 split이 발생하므로 BPTREE_MAX_KEYS + 1을 반환한다.
+ */
+static int first_split_insert_count(void) {
+    return BPTREE_MAX_KEYS + 1;
+}
+
+/*
+ * 현재 B+ 트리 설정에서 내부 노드 분할까지 유도하기 위한 충분한 대량 삽입 개수를 계산하는 함수다.
+ * max key 값이 커져도 테스트가 깨지지 않도록 (BPTREE_MAX_KEYS + 1)^2 개를 사용한다.
+ */
+static int internal_split_insert_count(void) {
+    return (BPTREE_MAX_KEYS + 1) * (BPTREE_MAX_KEYS + 1);
+}
+
+/*
  * 루트에서 가장 왼쪽 자식만 따라가 트리 높이를 계산하는 함수다.
  * 리프 한 층만 있으면 1, 내부 노드가 하나 더 있으면 2 이상이 된다.
  */
@@ -96,20 +112,31 @@ static int assert_leaf_chain_sorted(BPTreeNode *root, int expected_count) {
 static int test_basic_insert_and_search(void) {
     BPTreeNode *root;
     int row_index;
+    long long keys_to_insert[3];
+    int insert_count;
+    int i;
 
     root = NULL;
+    keys_to_insert[0] = 10;
+    keys_to_insert[1] = 20;
+    keys_to_insert[2] = 5;
+    insert_count = BPTREE_MAX_KEYS >= 3 ? 3 : BPTREE_MAX_KEYS;
 
-    if (assert_true(bptree_insert(&root, 10, 100) == SUCCESS,
-                    "first insert should succeed") != SUCCESS ||
-        assert_true(bptree_insert(&root, 20, 200) == SUCCESS,
-                    "second insert should succeed") != SUCCESS ||
-        assert_true(bptree_insert(&root, 5, 50) == SUCCESS,
-                    "third insert should succeed") != SUCCESS ||
-        assert_true(root != NULL && root->is_leaf,
-                    "root should still be a leaf before overflow") != SUCCESS ||
-        assert_true(root->key_count == 3,
-                    "leaf root should contain three keys before split") != SUCCESS ||
-        assert_true(bptree_search(root, 20, &row_index) == SUCCESS && row_index == 200,
+    for (i = 0; i < insert_count; i++) {
+        if (assert_true(bptree_insert(&root, keys_to_insert[i],
+                                      (int)keys_to_insert[i] * 10) == SUCCESS,
+                        "basic insert should succeed") != SUCCESS) {
+            bptree_free(root);
+            return FAILURE;
+        }
+    }
+
+    if (assert_true(root != NULL && root->is_leaf,
+                    "root should stay a leaf while inserted key count is within max_keys") != SUCCESS ||
+        assert_true(root->key_count == insert_count,
+                    "leaf root should contain every basic test key before split") != SUCCESS ||
+        assert_true(bptree_search(root, keys_to_insert[0], &row_index) == SUCCESS &&
+                        row_index == (int)keys_to_insert[0] * 10,
                     "search should return inserted row_index") != SUCCESS ||
         assert_true(bptree_search(root, 999, &row_index) == FAILURE,
                     "search should fail for missing key") != SUCCESS) {
@@ -129,18 +156,21 @@ static int test_leaf_split_and_root_creation(void) {
     BPTreeNode *root;
     BPTreeNode *left_leaf;
     BPTreeNode *right_leaf;
+    int insert_count;
+    int i;
 
     root = NULL;
+    insert_count = first_split_insert_count();
 
-    if (assert_true(bptree_insert(&root, 10, 100) == SUCCESS,
-                    "insert 10 should succeed") != SUCCESS ||
-        assert_true(bptree_insert(&root, 20, 200) == SUCCESS,
-                    "insert 20 should succeed") != SUCCESS ||
-        assert_true(bptree_insert(&root, 30, 300) == SUCCESS,
-                    "insert 30 should succeed") != SUCCESS ||
-        assert_true(bptree_insert(&root, 40, 400) == SUCCESS,
-                    "insert 40 should trigger first leaf split") != SUCCESS ||
-        assert_true(root != NULL && !root->is_leaf,
+    for (i = 1; i <= insert_count; i++) {
+        if (assert_true(bptree_insert(&root, i * 10, i * 100) == SUCCESS,
+                        "insert should succeed until first leaf split") != SUCCESS) {
+            bptree_free(root);
+            return FAILURE;
+        }
+    }
+
+    if (assert_true(root != NULL && !root->is_leaf,
                     "root should become an internal node after first split") != SUCCESS ||
         assert_true(root->key_count == 1,
                     "new root should contain one separator key after first split") != SUCCESS) {
@@ -159,7 +189,7 @@ static int test_leaf_split_and_root_creation(void) {
                     "left leaf should link to right leaf through next pointer") != SUCCESS ||
         assert_true(bptree_search(root, 10, NULL) == SUCCESS,
                     "search should still find left-side key after split") != SUCCESS ||
-        assert_true(bptree_search(root, 40, NULL) == SUCCESS,
+        assert_true(bptree_search(root, insert_count * 10, NULL) == SUCCESS,
                     "search should still find right-side key after split") != SUCCESS) {
         bptree_free(root);
         return FAILURE;
@@ -175,11 +205,13 @@ static int test_leaf_split_and_root_creation(void) {
  */
 static int test_internal_split_and_full_search(void) {
     BPTreeNode *root;
+    int insert_count;
     int i;
 
     root = NULL;
+    insert_count = internal_split_insert_count();
 
-    for (i = 1; i <= 20; i++) {
+    for (i = 1; i <= insert_count; i++) {
         if (bptree_insert(&root, i, i * 10) != SUCCESS) {
             fprintf(stderr, "[FAIL] insert %d should succeed during bulk load\n", i);
             bptree_free(root);
@@ -193,9 +225,9 @@ static int test_internal_split_and_full_search(void) {
                     "bulk insert should grow tree height beyond leaf root") != SUCCESS ||
         assert_true(root->children[0] != NULL && !root->children[0]->is_leaf,
                     "root first child should become an internal node after internal split") != SUCCESS ||
-        assert_true(assert_full_search(root, 20) == SUCCESS,
+        assert_true(assert_full_search(root, insert_count) == SUCCESS,
                     "every inserted key should remain searchable after splits") != SUCCESS ||
-        assert_true(assert_leaf_chain_sorted(root, 20) == SUCCESS,
+        assert_true(assert_leaf_chain_sorted(root, insert_count) == SUCCESS,
                     "leaf chain should stay sorted after repeated splits") != SUCCESS) {
         bptree_free(root);
         return FAILURE;

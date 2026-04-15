@@ -46,6 +46,8 @@ static int bptree_find_child_slot(const BPTreeNode *node, long long key) {
  * 부모 노드의 children 배열 안에서 특정 자식 포인터가 들어 있는 인덱스를 찾는 함수다.
  * 찾지 못하면 FAILURE를 반환해 상위 호출자가 구조 이상을 감지할 수 있게 한다.
  * 분할 후 부모에 끼워 넣을 때, 방금 split된 left child가 부모의 몇 번째 자식이었는지가 중요해서.
+ * keys[]는 자식 그 자체가 아니라 자식 사이의 경계입니다.
+ * 그래서 children[i]가 split되면, 새 separator key는 keys[i]에 들어가고, 새 right child는 children[i+1]에 들어갑니다. 즉 i를 알아야 부모를 고칠 수 있고, 그 i를 찾는 게 이 함수
  */
 static int bptree_find_child_index(const BPTreeNode *parent, const BPTreeNode *child) {
     int i;
