@@ -209,6 +209,67 @@ static int benchmark_prepare_runtime_table(TableRuntime *table, const char *tabl
 }
 
 /*
+ * benchmark 내부에서 컬럼 이름으로 실제 컬럼 인덱스를 찾는 함수다.
+ * first-match 전용 선형 탐색에서도 런타임 스키마를 직접 해석할 수 있게 한다.
+ */
+static int benchmark_find_column_index(const TableRuntime *table,
+                                       const char *column_name) {
+    int i;
+
+    if (table == NULL || column_name == NULL) {
+        return FAILURE;
+    }
+
+    for (i = 0; i < table->col_count; i++) {
+        if (utils_equals_ignore_case(table->columns[i], column_name)) {
+            return i;
+        }
+    }
+
+    return FAILURE;
+}
+
+/*
+ * benchmark용 선형 탐색에서 셀 하나가 등호 조건을 만족하는지 검사하는 함수다.
+ * 현재 benchmark는 `name = 값` 비교만 쓰므로 equality 비교만 단순하게 제공한다.
+ */
+static int benchmark_matches_equals(const char *cell_value, const char *target_value) {
+    return utils_compare_values(cell_value == NULL ? "" : cell_value,
+                                target_value == NULL ? "" : target_value) == 0;
+}
+
+/*
+ * 선형 탐색 중 첫 번째 일치 행을 찾으면 바로 멈추는 benchmark 전용 함수다.
+ * `name`이 unique인 현재 데이터 분포에서 first-match latency를 따로 비교할 때 사용한다.
+ */
+static int benchmark_find_first_match_by_field(const TableRuntime *table,
+                                               const char *column_name,
+                                               const char *target_value,
+                                               int *out_row_index) {
+    int column_index;
+    int i;
+
+    if (table == NULL || column_name == NULL || target_value == NULL ||
+        out_row_index == NULL) {
+        return FAILURE;
+    }
+
+    column_index = benchmark_find_column_index(table, column_name);
+    if (column_index == FAILURE) {
+        return FAILURE;
+    }
+
+    for (i = 0; i < table->row_count; i++) {
+        if (benchmark_matches_equals(table->rows[i][column_index], target_value)) {
+            *out_row_index = i;
+            return SUCCESS;
+        }
+    }
+
+    return FAILURE;
+}
+
+/*
  * 이미 준비한 인덱스 없는 행 배열에 count개 baseline 행을 미리 채우는 함수다.
  * 본 측정 전에 100만 건 데이터 상태를 만들어 append 비용을 큰 테이블 기준으로 비교한다.
  */
@@ -306,6 +367,7 @@ int benchmark_run(void) {
     double insert_without_index_ms;
     double insert_with_index_ms;
     double select_by_id_ms;
+    double select_by_scan_first_match_ms;
     double select_by_scan_ms;
     double start_ms;
     double end_ms;
@@ -402,6 +464,27 @@ int benchmark_run(void) {
             goto cleanup;
         }
 
+        if (benchmark_find_first_match_by_field(&indexed_table, "name",
+                                                value_buffer, &row_index) != SUCCESS ||
+            table_get_row_by_slot(&indexed_table, row_index) == NULL) {
+            goto cleanup;
+        }
+    }
+    end_ms = benchmark_now_ms();
+    select_by_scan_first_match_ms = benchmark_average_ms(end_ms - start_ms,
+                                                         BENCHMARK_MEASURE_REPEAT);
+
+    start_ms = benchmark_now_ms();
+    for (i = 0; i < BENCHMARK_MEASURE_REPEAT; i++) {
+        target_row_number = benchmark_pick_target_row_number(i, total_row_count);
+        if (target_row_number == FAILURE) {
+            goto cleanup;
+        }
+        if (benchmark_generate_row_value(value_buffer, sizeof(value_buffer),
+                                         target_row_number) != SUCCESS) {
+            goto cleanup;
+        }
+
         matches = NULL;
         match_count = 0;
         if (table_linear_scan_by_field(&indexed_table, "name", "=",
@@ -427,6 +510,8 @@ int benchmark_run(void) {
     printf("insert_without_index_avg: %.6f ms/op\n", insert_without_index_ms);
     printf("insert_with_bptree_index_avg: %.6f ms/op\n", insert_with_index_ms);
     printf("select_by_id_with_index_avg: %.6f ms/op\n", select_by_id_ms);
+    printf("select_by_other_field_linear_scan_first_match_avg: %.6f ms/op\n",
+           select_by_scan_first_match_ms);
     printf("select_by_other_field_linear_scan_avg: %.6f ms/op\n",
            select_by_scan_ms);
 
