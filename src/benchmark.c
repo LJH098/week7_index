@@ -134,7 +134,6 @@ static void benchmark_prepare_insert_stmt(InsertStatement *stmt) {
  */
 static int benchmark_measure_indexed_insert(const BenchmarkConfig *config,
                                             TableRuntime *table,
-                                            BPTreeNode **out_root,
                                             int **out_inserted_ids,
                                             double *elapsed_ms) {
     InsertStatement stmt;
@@ -148,14 +147,13 @@ static int benchmark_measure_indexed_insert(const BenchmarkConfig *config,
     clock_t start;
     clock_t end;
 
-    if (config == NULL || table == NULL || out_root == NULL ||
-        out_inserted_ids == NULL || elapsed_ms == NULL) {
+    if (config == NULL || table == NULL || out_inserted_ids == NULL ||
+        elapsed_ms == NULL) {
         return FAILURE;
     }
 
     benchmark_prepare_insert_stmt(&stmt);
     table_init(table);
-    *out_root = NULL;
     *out_inserted_ids = NULL;
     inserted_ids = (int *)malloc((size_t)config->row_count * sizeof(int));
     if (inserted_ids == NULL) {
@@ -170,7 +168,6 @@ static int benchmark_measure_indexed_insert(const BenchmarkConfig *config,
         snprintf(stmt.values[1], sizeof(stmt.values[1]), "%s", age);
         if (table_insert_row(table, &stmt, &row_index) != SUCCESS) {
             free(inserted_ids);
-            bptree_free(*out_root);
             table_free(table);
             return FAILURE;
         }
@@ -178,19 +175,12 @@ static int benchmark_measure_indexed_insert(const BenchmarkConfig *config,
         row = table_get_row_by_slot(table, row_index);
         if (row == NULL || !utils_is_integer(row[0])) {
             free(inserted_ids);
-            bptree_free(*out_root);
             table_free(table);
             return FAILURE;
         }
 
         id_key = (int)utils_parse_integer(row[0]);
         inserted_ids[i] = id_key;
-        if (bptree_insert(out_root, id_key, row_index) != SUCCESS) {
-            free(inserted_ids);
-            bptree_free(*out_root);
-            table_free(table);
-            return FAILURE;
-        }
     }
     end = clock();
 
@@ -311,7 +301,6 @@ BenchmarkConfig benchmark_default_config(void) {
 int benchmark_run(const BenchmarkConfig *config) {
     BenchmarkConfig active_config;
     TableRuntime indexed_table;
-    BPTreeNode *id_index_root;
     int *inserted_ids;
     double indexed_insert_ms;
     double plain_insert_ms;
@@ -328,31 +317,27 @@ int benchmark_run(const BenchmarkConfig *config) {
     plain_insert_ms = 0.0;
     id_lookup_ms = 0.0;
     linear_scan_ms = 0.0;
-    id_index_root = NULL;
     inserted_ids = NULL;
+    memset(&indexed_table, 0, sizeof(indexed_table));
 
-    if (benchmark_measure_indexed_insert(&active_config, &indexed_table, &id_index_root,
-                                         &inserted_ids,
+    if (benchmark_measure_indexed_insert(&active_config, &indexed_table, &inserted_ids,
                                          &indexed_insert_ms) != SUCCESS) {
         return FAILURE;
     }
     if (benchmark_measure_plain_insert(&active_config, &plain_insert_ms) != SUCCESS) {
         free(inserted_ids);
-        bptree_free(id_index_root);
         table_free(&indexed_table);
         return FAILURE;
     }
-    if (benchmark_measure_id_lookup(&active_config, id_index_root, inserted_ids,
+    if (benchmark_measure_id_lookup(&active_config, indexed_table.id_index_root, inserted_ids,
                                     &id_lookup_ms) != SUCCESS) {
         free(inserted_ids);
-        bptree_free(id_index_root);
         table_free(&indexed_table);
         return FAILURE;
     }
     if (benchmark_measure_linear_scan(&active_config, &indexed_table,
                                       &linear_scan_ms) != SUCCESS) {
         free(inserted_ids);
-        bptree_free(id_index_root);
         table_free(&indexed_table);
         return FAILURE;
     }
@@ -366,7 +351,6 @@ int benchmark_run(const BenchmarkConfig *config) {
     printf("field lookup via linear scan: %.3f ms\n", linear_scan_ms);
 
     free(inserted_ids);
-    bptree_free(id_index_root);
     table_free(&indexed_table);
     return SUCCESS;
 }
