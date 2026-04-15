@@ -113,12 +113,7 @@ flowchart TD
 
 ## 7. B+Tree의 핵심 특징
 B+Tree의 핵심은 내부 노드와 리프 노드의 역할이 분리된다는 점이다.
-
-- internal node는 key와 child pointer만 가진다.
-- 실제 데이터 위치는 leaf node에 저장한다.
-- leaf node들은 연결 리스트처럼 이어져 있다.
-- 모든 leaf는 같은 depth에 있다.
-- 탐색 시간은 트리 높이에 비례한다.
+<img width="2048" height="2348" alt="IMG_7AF5A249CF24-1" src="https://github.com/user-attachments/assets/02491ee1-a51b-4a99-881a-38f2391c9e1b" />
 
 
 
