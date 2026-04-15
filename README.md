@@ -9,20 +9,8 @@
 ## 2. 성능 비교 결과
 인덱스 유지 비용 때문에 삽입은 느려졌지만, `WHERE id = ?` 같은 조건에서 조회 성능은 크게 개선되었다.  
 
-| 항목 | 측정값 |
-| --- | ---: |
-| Rows | 1,000,000 |
-| Queries | 1,000 |
-| Insert with id index | 761.060 ms |
-| Insert without id index | 329.987 ms |
-| id lookup via B+Tree | 2.444 ms |
-| id lookup via linear scan | 12047.846 ms |
-| field lookup via linear scan (name) | 2482.943 ms |
+<img width="1475" height="1155" alt="스크린샷 2026-04-16 오전 1 52 37" src="https://github.com/user-attachments/assets/53b942c2-affa-4177-9e70-da3359548941" />
 
-### 성능 해석
-- 인덱스를 유지하면서 삽입하기 위해 `761.060 / 329.987 ≈ 2.31배` 느려졌다.
-- 같은 `id` 조회를 비교하면, B+Tree는 선형 탐색보다 `12047.846 / 2.444 ≈ 4,930배` 빨랐다.
-- 비인덱스 필드인 `name` 조회도 선형 탐색을 사용하므로, B+Tree 기반 `id` 조회보다 `2482.943 / 2.444 ≈ 1,016배` 느리게 측정되었다.
 
 
 ## 3. 프로젝트 구조
