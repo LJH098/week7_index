@@ -1,5 +1,6 @@
 #include "table_runtime.h"
 
+#include "bptree.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -37,6 +38,13 @@ static int table_validate_insert_schema(const TableRuntime *table,
 
     if (table == NULL || stmt == NULL) {
         return FAILURE;
+    }
+
+    for (i = 0; i < stmt->column_count; i++) {
+        if (utils_equals_ignore_case(stmt->columns[i], "id")) {
+            fprintf(stderr, "Error: Explicit id values are not allowed.\n");
+            return FAILURE;
+        }
     }
 
     if (stmt->column_count <= 0 || stmt->column_count != table->col_count - 1) {
@@ -191,6 +199,11 @@ void table_free(TableRuntime *table) {
             table->rows[i] = NULL;
         }
         free(table->rows);
+    }
+
+    if (table->id_index_root != NULL) {
+        bptree_free(table->id_index_root);
+        table->id_index_root = NULL;
     }
 
     table_init(table);
