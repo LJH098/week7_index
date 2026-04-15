@@ -3,7 +3,7 @@
 
 #include "parser.h"
 
-typedef struct BPTreeNode BPTreeNode;
+struct BPTreeNode;
 
 typedef struct {
     char table_name[MAX_IDENTIFIER_LEN];
@@ -14,7 +14,7 @@ typedef struct {
     int capacity;
     int id_column_index;
     long long next_id;
-    BPTreeNode *id_index_root;
+    struct BPTreeNode *id_index_root;
     int loaded;
 } TableRuntime;
 

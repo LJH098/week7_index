@@ -1,3 +1,4 @@
+#include "bptree.h"
 #include "table_runtime.h"
 
 #include <stdio.h>
@@ -51,13 +52,14 @@ static void prepare_insert_with_id(InsertStatement *stmt, const char *table_name
 
 /*
  * 테스트 전체를 실행하면서 메모리 런타임 초기화, auto-id, 선형 탐색,
- * 활성 테이블 교체 정책이 기대대로 동작하는지 검증하는 함수다.
+ * id 인덱스 등록, 삽입 실패 시 상태 유지, 활성 테이블 교체 정책이 기대대로 동작하는지 검증하는 함수다.
  */
 int main(void) {
     TableRuntime *table;
     InsertStatement stmt;
     char **row;
     int row_index;
+    int indexed_row_index;
     long long generated_id;
     int *matches;
     int match_count;
@@ -83,10 +85,16 @@ int main(void) {
         assert_true(generated_id == 1, "first generated id should be 1") != SUCCESS ||
         assert_true(table->col_count == 3,
                     "runtime schema should add id column automatically") != SUCCESS ||
+        assert_true(table->id_index_root != NULL,
+                    "runtime table should create id index root on first insert") != SUCCESS ||
         assert_true(strcmp(table->columns[0], "id") == 0,
                     "runtime first column should be id") != SUCCESS ||
         assert_true(strcmp(table->rows[0][0], "1") == 0,
                     "first row should store generated id string") != SUCCESS ||
+        assert_true(bptree_search(table->id_index_root, generated_id,
+                                  &indexed_row_index) == SUCCESS &&
+                        indexed_row_index == 0,
+                    "first generated id should be searchable through B+ tree index") != SUCCESS ||
         assert_true(strcmp(table->rows[0][1], "Alice") == 0,
                     "first row should store name value") != SUCCESS) {
         table_runtime_cleanup();
@@ -100,6 +108,10 @@ int main(void) {
         assert_true(generated_id == 2, "second generated id should be 2") != SUCCESS ||
         assert_true(table->row_count == 2,
                     "runtime table should count inserted rows") != SUCCESS ||
+        assert_true(bptree_search(table->id_index_root, generated_id,
+                                  &indexed_row_index) == SUCCESS &&
+                        indexed_row_index == 1,
+                    "second generated id should map to second row in B+ tree index") != SUCCESS ||
         assert_true(table->next_id == 3,
                     "next_id should advance after insert") != SUCCESS) {
         table_runtime_cleanup();
@@ -149,6 +161,28 @@ int main(void) {
     prepare_insert_with_id(&stmt, "runtime_users", "99", "Mallory", "44");
     if (assert_true(table_insert_row(table, &stmt, &row_index, &generated_id) == FAILURE,
                     "runtime table should reject explicit id input") != SUCCESS) {
+        table_runtime_cleanup();
+        return EXIT_FAILURE;
+    }
+
+    if (assert_true(bptree_insert(&table->id_index_root, table->next_id, 99) == SUCCESS,
+                    "test should be able to inject conflicting next_id into B+ tree") != SUCCESS) {
+        table_runtime_cleanup();
+        return EXIT_FAILURE;
+    }
+
+    prepare_insert_without_id(&stmt, "runtime_users", "Carol", "41");
+    if (assert_true(table_insert_row(table, &stmt, &row_index, &generated_id) == FAILURE,
+                    "runtime insert should fail when B+ tree rejects generated id") != SUCCESS ||
+        assert_true(table->row_count == 2,
+                    "failed index registration should not commit a new row") != SUCCESS ||
+        assert_true(table->next_id == 3,
+                    "failed index registration should keep next_id unchanged") != SUCCESS ||
+        assert_true(table_get_row_by_slot(table, 2) == NULL,
+                    "failed index registration should not expose a pending row slot") != SUCCESS ||
+        assert_true(bptree_search(table->id_index_root, 3, &indexed_row_index) == SUCCESS &&
+                        indexed_row_index == 99,
+                    "failed insert should leave preexisting conflicting index entry unchanged") != SUCCESS) {
         table_runtime_cleanup();
         return EXIT_FAILURE;
     }
