@@ -46,7 +46,6 @@ static int table_validate_insert_schema(const TableRuntime *table,
             return FAILURE;
         }
     }
-
     if (stmt->column_count <= 0 || stmt->column_count != table->col_count - 1) {
         fprintf(stderr, "Error: INSERT columns do not match table schema.\n");
         return FAILURE;
@@ -205,7 +204,6 @@ void table_free(TableRuntime *table) {
         bptree_free(table->id_index_root);
         table->id_index_root = NULL;
     }
-
     table_init(table);
 }
 
