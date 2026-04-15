@@ -1,13 +1,32 @@
 #include "table_runtime.h"
 
+#include "bptree.h"
 #include "utils.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static TableRuntime table_runtime_active;
 static int table_runtime_has_active = 0;
+
+/*
+ * 런타임이 소유한 행 하나를 해제한다.
+ */
+static void table_free_owned_row(char **row, int col_count) {
+    int i;
+
+    if (row == NULL) {
+        return;
+    }
+
+    for (i = 0; i < col_count; i++) {
+        free(row[i]);
+        row[i] = NULL;
+    }
+    free(row);
+}
 
 /*
  * 문자열 열 이름을 대소문자 무시로 비교해 위치를 찾는다.
@@ -172,22 +191,17 @@ void table_init(TableRuntime *table) {
 
 void table_free(TableRuntime *table) {
     int i;
-    int j;
 
     if (table == NULL) {
         return;
     }
 
+    bptree_free(table->id_index_root);
+    table->id_index_root = NULL;
+
     if (table->rows != NULL) {
         for (i = 0; i < table->row_count; i++) {
-            if (table->rows[i] == NULL) {
-                continue;
-            }
-            for (j = 0; j < table->col_count; j++) {
-                free(table->rows[i][j]);
-                table->rows[i][j] = NULL;
-            }
-            free(table->rows[i]);
+            table_free_owned_row(table->rows[i], table->col_count);
             table->rows[i] = NULL;
         }
         free(table->rows);
@@ -250,6 +264,7 @@ TableRuntime *table_get_or_load(const char *table_name) {
 int table_insert_row(TableRuntime *table, const InsertStatement *stmt,
                      int *out_row_index) {
     char **row;
+    int row_index;
 
     if (table == NULL || stmt == NULL || out_row_index == NULL) {
         return FAILURE;
@@ -285,8 +300,21 @@ int table_insert_row(TableRuntime *table, const InsertStatement *stmt,
         return FAILURE;
     }
 
-    table->rows[table->row_count] = row;
-    *out_row_index = table->row_count;
+    if (table->next_id > INT_MAX) {
+        fprintf(stderr, "Error: Runtime id exceeds B+ tree key range.\n");
+        table_free_owned_row(row, table->col_count);
+        return FAILURE;
+    }
+
+    row_index = table->row_count;
+    table->rows[row_index] = row;
+    if (bptree_insert(&table->id_index_root, (int)table->next_id, row_index) != SUCCESS) {
+        table_free_owned_row(table->rows[row_index], table->col_count);
+        table->rows[row_index] = NULL;
+        return FAILURE;
+    }
+
+    *out_row_index = row_index;
     table->row_count++;
     table->next_id++;
     return SUCCESS;
