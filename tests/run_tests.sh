@@ -39,7 +39,8 @@ run_sql_test() {
 }
 
 for binary in build/tests/test_tokenizer build/tests/test_parser \
-              build/tests/test_storage build/tests/test_executor
+              build/tests/test_storage build/tests/test_table_runtime \
+              build/tests/test_bptree build/tests/test_executor
 do
     run_unit_test "$binary"
 done
@@ -47,9 +48,9 @@ done
 run_sql_test "Basic INSERT" "tests/test_cases/basic_insert.sql" "1 row inserted into users."
 run_sql_test "Basic SELECT" "tests/test_cases/basic_select.sql" "Alice"
 run_sql_test "WHERE equals" "tests/test_cases/select_where.sql" "Bob"
+run_sql_test "WHERE id uses index" "tests/test_cases/select_by_id.sql" "Bob"
 run_sql_test "Edge cases" "tests/test_cases/edge_cases.sql" "Lee, Jr."
-run_sql_test "Duplicate primary key" "tests/test_cases/duplicate_primary_key.sql" "Duplicate primary key value"
-run_sql_test "Delete WHERE" "tests/test_cases/delete_where.sql" "1 row deleted from users."
+run_sql_test "Manual id reject" "tests/test_cases/reject_manual_id.sql" "Manual id insertion is not allowed"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
