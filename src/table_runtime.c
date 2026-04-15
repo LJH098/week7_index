@@ -1,5 +1,6 @@
 #include "table_runtime.h"
 
+#include "bptree.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -25,6 +26,20 @@ static void table_free_row_cells(TableRuntime *table, char **row) {
     }
 
     free(row);
+}
+
+/*
+ * 아직 row_count에 반영되지 않은 대기 행 포인터를 취소하고 메모리를 회수하는 함수다.
+ * B+ 트리 등록 실패처럼 INSERT를 커밋할 수 없는 경우에 부분적으로 만든 행을 되돌릴 때 사용한다.
+ */
+static void table_discard_pending_row(TableRuntime *table, int row_index) {
+    if (table == NULL || row_index < 0 || row_index >= table->capacity ||
+        table->rows == NULL || table->rows[row_index] == NULL) {
+        return;
+    }
+
+    table_free_row_cells(table, table->rows[row_index]);
+    table->rows[row_index] = NULL;
 }
 
 /*
@@ -280,7 +295,7 @@ void table_init(TableRuntime *table) {
 
 /*
  * 런타임 테이블이 가지고 있는 모든 행 메모리를 해제하는 함수다.
- * 이 단계에서는 B+ 트리 연결 전이므로 id_index_root는 항상 NULL이라고 가정한다.
+ * 행 배열과 함께 id 전용 B+ 트리도 같이 정리해 메모리 기준 데이터 구조를 모두 비운다.
  */
 void table_free(TableRuntime *table) {
     int i;
@@ -296,6 +311,9 @@ void table_free(TableRuntime *table) {
 
     free(table->rows);
     table->rows = NULL;
+
+    bptree_free(table->id_index_root);
+    table->id_index_root = NULL;
 
     table_init(table);
 }
@@ -374,6 +392,7 @@ int table_reserve_if_needed(TableRuntime *table) {
 /*
  * INSERT 문을 현재 활성 런타임 테이블의 새 메모리 행으로 추가하는 함수다.
  * 첫 INSERT에서는 스키마를 확정하고, 이후에는 같은 스키마만 허용한다.
+ * 행 포인터를 먼저 준비한 뒤 B+ 트리 등록이 성공했을 때만 row_count와 next_id를 확정한다.
  */
 int table_insert_row(TableRuntime *table, const InsertStatement *stmt,
                      int *out_row_index, long long *out_id) {
@@ -420,7 +439,13 @@ int table_insert_row(TableRuntime *table, const InsertStatement *stmt,
 
     row_index = table->row_count;
     table->rows[row_index] = new_row;
-    table->row_count++;
+
+    if (bptree_insert(&table->id_index_root, generated_id, row_index) != SUCCESS) {
+        table_discard_pending_row(table, row_index);
+        return FAILURE;
+    }
+
+    table->row_count = row_index + 1;
     table->next_id++;
 
     if (out_row_index != NULL) {
