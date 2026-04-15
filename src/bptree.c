@@ -361,7 +361,17 @@ int bptree_insert(BPTreeNode **root, long long key, int row_index) {
         leaf = *root;
     }
 
-    if (bptree_insert_into_leaf(leaf, key, row_index) != SUCCESS) {
+    leaf = bptree_find_leaf(*root, key);
+    if (leaf != NULL) {
+        for (int i = 0; i < leaf->key_count; i++) {
+            if (leaf->keys[i] == key) {
+                fprintf(stderr, "Error: Duplicate B+ tree key %lld.\n", key);
+                return FAILURE;
+            }
+        }
+    } else {
+        leaf = *root;
+    }
         return FAILURE;
     }
 
