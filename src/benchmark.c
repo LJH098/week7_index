@@ -169,11 +169,11 @@ static int benchmark_measure_select_by_other_field(const TableRuntime *table,
  */
 static void benchmark_print_metric(const char *label, double total_ms,
                                    int operations) {
-    double average_us;
+    double average_ms;
 
-    average_us = (total_ms * 1000.0) / (double)operations;
-    printf("%s: total_ms=%.3f avg_us=%.3f ops=%d\n",
-           label, total_ms, average_us, operations);
+    average_ms = total_ms / (double)operations;
+    printf("%s: total_ms=%.3f avg_ms=%.6f ops=%d\n",
+           label, total_ms, average_ms, operations);
 }
 
 int benchmark_generate_row_value(char *buffer, size_t buffer_size,
