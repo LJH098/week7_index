@@ -4,6 +4,8 @@ echo "=== SQL Processor Test Suite ==="
 PASS=0
 FAIL=0
 
+# 테스트 바이너리 하나를 실행하고 성공 여부를 집계하는 함수다.
+# 표준 출력과 표준 에러를 임시 로그로 모아 실패 시 원인을 함께 보여준다.
 run_unit_test() {
     local binary=$1
     if "$binary" >/tmp/sql_processor_test.log 2>&1; then
@@ -16,6 +18,8 @@ run_unit_test() {
     fi
 }
 
+# 실제 SQL 파일을 메인 바이너리로 실행해 기대 문자열이 나오는지 검사하는 함수다.
+# 파일 기반 통합 시나리오를 빠르게 검증하기 위해 간단한 grep 기반 비교를 사용한다.
 run_sql_test() {
     local test_name=$1
     local sql_file=$2
@@ -39,7 +43,8 @@ run_sql_test() {
 }
 
 for binary in build/tests/test_tokenizer build/tests/test_parser \
-              build/tests/test_storage build/tests/test_executor
+              build/tests/test_storage build/tests/test_executor \
+              build/tests/test_table_runtime
 do
     run_unit_test "$binary"
 done
