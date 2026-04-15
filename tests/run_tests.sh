@@ -39,7 +39,8 @@ run_sql_test() {
 }
 
 for binary in build/tests/test_tokenizer build/tests/test_parser \
-              build/tests/test_storage build/tests/test_executor
+              build/tests/test_storage build/tests/test_bptree \
+              build/tests/test_executor
 do
     run_unit_test "$binary"
 done
