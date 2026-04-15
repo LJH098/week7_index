@@ -1,171 +1,176 @@
-<img width="500" height="500" alt="qrcode_330735753_87394ba2d91fc91edec44909f936e3c9" src="https://github.com/user-attachments/assets/02ce8c7c-a851-4c99-8764-86c63091c5c5" />
+# B+Tree 기반 ID 인덱스를 연동한 SQL Processor
 
-## 프로젝트 개요
-> 이 프로젝트는 C 언어로 구현한 간단한 SQL 처리기(SQL Processor)입니다. </br>
-> 사용자로부터 SQL 쿼리를 입력받아 파싱하고, 이를 실행하여 CSV 파일 기반 저장소에 반영합니다.
----
-## 무엇을 만들었나
-이번 과제의 목표는 SQL 문자열을 받아 실제로 실행하는 엔진을 C로 직접 구현하는 것이었습니다.
-- `SELECT`, `INSERT`, `DELETE` 세 가지 SQL 문을 지원합니다.
-- 파일 모드(.sql 파일 실행)와 REPL 모드(대화형 셸) 두 가지 방식으로 동작합니다.
-- 데이터는 CSV 파일에 저장되고, WHERE 조건을 포함한 조회와 삭제도 지원합니다.
-- 파싱 비용을 줄이기 위해 tokenizer 내부에 LRU 방식의 캐시를 사용합니다.
-- 동일한 SQL 문이 반복 입력되면 캐시에서 토큰 배열을 즉시 반환합니다.
----
-## 모듈별 역할
-| 모듈 | 역할 | 핵심 함수 |
-|------|------|-----------|
-| `src/tokenizer.c` | SQL 문자열을 `Token[]` 배열로 분해 | `tokenizer_tokenize()` |
-| `src/parser.c` | 토큰 배열을 `SqlStatement` 구조체로 변환 | `parser_parse()` |
-| `src/executor.c` | 파싱된 문장을 실행하고 결과 출력 | `executor_execute()` |
-| `src/storage.c` | CSV 읽기/쓰기, 스키마 유지, 삭제 재작성 | `storage_insert()`, `storage_load_table()`, `storage_delete()` |
-| `src/index.c` | 조건 조회를 위한 인메모리 인덱스 생성 | `index_build()`, `index_query_equals()`, `index_query_range()` |
-| `src/utils.c` | 문자열/메모리/출력/세미콜론 탐지 유틸리티 | `utils_strdup()`, `utils_trim()`, `utils_compare_values()` |
----
-## 단계별 시각화
-```mermaid
-flowchart LR
-    A([📥 입력]) --> B([🔤 토크나이징])
-    B --> C([🔍 해석])
-    C --> D([⚙️ 실행])
-    D --> E([💾 저장])
+## 1. 프로젝트 한 줄 소개
+이 프로젝트는 기존 SQL 처리기에 B+Tree 기반 `id` 인덱스를 실제로 연결해 `WHERE id = ?` 조회 성능을 개선한 구현이다.  
+핵심은 자료구조만 따로 만든 것이 아니라, `INSERT`와 `SELECT` 실행 경로 안에 인덱스를 통합했다는 점이다.  
+즉, SQL을 파싱하고 실행하는 전체 흐름 속에서 인덱스가 실제로 동작하도록 만든 프로젝트다.
+
+## 2. 성능 비교 결과
+가장 먼저 보여줄 결과는 성능 차이다.  
+최신 측정값 기준으로, 인덱스는 삽입 시에는 비용을 추가하지만 `WHERE id = ?` 조회에서는 매우 큰 이득을 준다.
+
+| 항목 | 측정값 |
+| --- | ---: |
+| Rows | 1,000,000 |
+| Queries | 1,000 |
+| Insert with id index | 761.060 ms |
+| Insert without id index | 329.987 ms |
+| id lookup via B+Tree | 2.444 ms |
+| id lookup via linear scan | 12047.846 ms |
+| field lookup via linear scan (name) | 2482.943 ms |
+
+### 성능 해석
+- 인덱스를 유지하면서 삽입하면 `761.060 / 329.987 ≈ 2.31배` 느려졌다.
+- 같은 `id` 조회를 비교하면, B+Tree는 선형 탐색보다 `12047.846 / 2.444 ≈ 4,930배` 빨랐다.
+- 비인덱스 필드인 `name` 조회도 선형 탐색을 사용하므로, B+Tree 기반 `id` 조회보다 `2482.943 / 2.444 ≈ 1,016배` 느리게 측정되었다.
+
+핵심 요약은 간단하다.  
+인덱스 유지 비용 때문에 삽입은 느려졌지만, 조회 성능은 크게 개선되었다.  
+특히 `WHERE id = ?` 같은 조건에서는 선형 탐색 대비 매우 큰 성능 차이를 보였다.
+
+## 3. 프로젝트 구조
+발표에서 중요한 파일만 역할 중심으로 정리하면 아래와 같다.
+
+```text
+week7_index/
+├── src/
+│   ├── main.c            # 프로그램 진입점, REPL / 파일 입력 / benchmark 모드 분기
+│   ├── tokenizer.c/h     # SQL 문자열을 토큰 단위로 분해
+│   ├── parser.c/h        # 토큰을 SqlStatement 구조로 변환
+│   ├── executor.c/h      # 문장 종류를 판별하고 인덱스 사용 여부를 결정
+│   ├── table_runtime.c/h # 메모리 기반 테이블, auto increment id, row 저장, 선형 탐색
+│   ├── bptree.c/h        # id -> row_index를 저장하는 B+Tree 인덱스
+│   ├── benchmark.c/h     # 삽입과 조회 시나리오의 성능 측정
+│   ├── storage.c/h       # 기존 CSV 저장 계층
+│   ├── index.c/h         # 기존 보조 인덱스 실험 모듈
+│   └── utils.c/h         # 공통 문자열 / 비교 / 출력 유틸리티
+├── tests/
+│   ├── test_bptree.c         # split 이후 검색 정확성 검증
+│   ├── test_table_runtime.c  # auto id, row 저장, 선형 탐색 검증
+│   ├── test_executor.c       # INSERT / SELECT / WHERE id 실행 경로 검증
+│   ├── test_benchmark.c      # benchmark smoke test
+│   ├── test_storage.c        # 기존 storage 계층 검증
+│   └── test_cases/*.sql      # 실제 SQL 입력 시나리오 테스트
+├── Makefile              # 빌드와 테스트 진입점
+└── README.md             # 발표용 기술 설명 문서
 ```
-## 전체 토크나이저 흐름 (tokenizer_tokenize 함수)
-```mermaid
-flowchart TD
-    A["① SQL 입력\n예: SELECT * FROM users;"]
-    B["② 복사 & 정규화\nstrdup → trim → 빈 문자열 체크"]
-    C{"③ 캐시 조회\ntokenizer_lookup_cache()"}
-    D["캐시 히트\n복제본 즉시 반환"]
-    E["④ 실제 파싱\ntokenizer_tokenize_sql()"]
-    F["⑤ 캐시 저장\ntokenizer_store_cache()"]
-    G{"64개 초과?"}
-    H["오래된 항목 evict\nevict_oldest_cache_entry()"]
-    I["⑥ 토큰 배열 반환"]
 
-    A --> B
-    B --> C
-    C -- "히트" --> D
-    C -- "미스" --> E
-    D --> I
-    E --> F
-    F --> G
-    G -- "예" --> H
-    G -- "아니오" --> I
-    H --> I
-```
+이 구조의 핵심은 `tokenizer -> parser -> executor` 흐름은 유지하되, 실제 조회 최적화는 `table_runtime`과 `bptree`가 담당한다는 점이다.
 
-# Parser (구문 분석)
-
-Tokenizer가 만든 `Token[]` 배열을 문법 규칙에 따라 소비하여 `SqlStatement` 구조체로 변환한다.
-
-## 진입점: parser_parse()
-
+## 4. 전체 동작 흐름
+### 4-1. 전체 SQL 처리 흐름
 ```mermaid
 flowchart TD
-    A["Token 배열 입력"] --> B["parser_parse()"]
-    B --> C{"tokens[0] 키워드 확인"}
-
-    C -->|"INSERT"| D["parser_parse_insert()"]
-    C -->|"SELECT"| E["parser_parse_select()"]
-    C -->|"DELETE"| F["parser_parse_delete()"]
-    C -->|"그 외"| G["Error:\nUnsupported SQL statement"]
-
-    D --> H["SqlStatement\ntype = SQL_INSERT"]
-    E --> I["SqlStatement\ntype = SQL_SELECT"]
-    F --> J["SqlStatement\ntype = SQL_DELETE"]
+    A["SQL 입력"] --> B["Tokenizer"]
+    B --> C["Parser"]
+    C --> D["SqlStatement 생성"]
+    D --> E["Executor"]
+    E --> F{"문장 종류 / WHERE 조건 분석"}
+    F -->|INSERT| G["TableRuntime에 row 저장"]
+    G --> H["B+Tree에 (id -> row_index) 반영"]
+    F -->|SELECT + WHERE id = ?| I["B+Tree index lookup"]
+    I --> J["row_index 획득"]
+    J --> K["TableRuntime에서 row 조회"]
+    F -->|SELECT + 그 외 조건| L["TableRuntime linear scan"]
+    K --> M["결과 반환"]
+    L --> M
 ```
 
-## 실행 엔진
+현재 프로젝트는 `Executor`가 조건을 보고 경로를 나눈다.  
+`WHERE id = ?` 이면 B+Tree를 사용하고, 그 외 필드는 메모리 테이블을 선형 탐색한다.
 
-아래 다이어그램은 `executor.c`가 파싱된 SQL 문을 받아
-`INSERT`, `SELECT`, `DELETE`를 어떻게 실행하는지 보여준다.
-
+### 4-2. INSERT / SELECT 시 인덱스 반영 흐름
 ```mermaid
 flowchart TD
-    A["SqlStatement 입력"] --> B["executor_execute()"]
-    B --> C{"statement.type 분기"}
+    A["INSERT 실행"] --> B["auto increment id 발급"]
+    B --> C["TableRuntime rows에 저장"]
+    C --> D["B+Tree에 (id -> row_index) 삽입"]
 
-    C --> D["INSERT"]
-    C --> E["SELECT"]
-    C --> F["DELETE"]
-
-    D --> G["storage_insert() 호출"]
-    G --> H["1 row inserted 출력"]
-
-    E --> I["storage_load_table()로 CSV 로드"]
-    I --> J["조회할 컬럼 준비"]
-    J --> K{"WHERE 존재?"}
-
-    K -->|No| L["모든 행 수집"]
-    K -->|Yes| M["index_build()로 인메모리 인덱스 생성"]
-    M --> N["조건에 맞는 row offset 조회"]
-    N --> O["storage_read_row_at_offset()로 필요한 행만 읽기"]
-
-    L --> P["표 형태로 출력"]
-    O --> P
-    P --> Q["N rows selected 출력"]
-
-    F --> R["storage_delete() 호출"]
-    R --> S["N rows deleted 출력"]
+    E["SELECT ... WHERE id = ?"] --> F["root부터 leaf까지 탐색"]
+    F --> G["leaf에서 row_index 획득"]
+    G --> H["TableRuntime에서 실제 row 조회"]
+    H --> I["Projection 후 결과 반환"]
 ```
 
-## Docker 실행
+즉 `INSERT`는 데이터 저장과 인덱스 반영이 함께 일어나고,  
+`SELECT WHERE id = ?` 는 트리 탐색으로 위치를 찾은 뒤 해당 row를 바로 읽어오는 방식으로 동작한다.
 
-프로젝트 루트 디렉터리에서 아래 명령으로 이미지를 빌드하고 실행합니다.
+## 5. 인덱스가 필요한 이유
+인덱스가 없으면 `WHERE id = ?` 처럼 정확한 한 건을 찾는 조건도 결국 첫 번째 레코드부터 끝까지 확인해야 한다.  
+데이터가 적을 때는 단순한 구현으로 충분하지만, 데이터가 많아질수록 선형 탐색 비용은 그대로 커진다.
 
-```bash
-docker build -t sql-processor .
-docker run -it sql-processor bash -lc "make && ./sql_processor"
-```
+특히 `id`는 보통 고유한 값이기 때문에, 전체를 훑는 것보다 바로 위치를 찾아가는 방식이 훨씬 효율적이다.  
+그래서 인덱스는 "조회 시간을 줄이기 위해 삽입 시 추가 비용을 감수하는 구조"라고 볼 수 있다.
 
-## 데모 시나리오
-
-아래 SQL은 발표에서 사용한 시연 예시이다.  
-초기 점심 데이터가 저장된 상태에서 저녁 메뉴를 추가하고, 조회와 삭제가 어떻게 동작하는지 보여준다.
-
-```sql
-SELECT * FROM jungle_menu;
-
-INSERT INTO jungle_menu (slot_key, menu_date, meal_type, dish_order, dish_name) VALUES ('20260409_dinner', 20260409, 'dinner', 1, '나가사끼짬뽕');
-INSERT INTO jungle_menu (slot_key, menu_date, meal_type, dish_order, dish_name) VALUES ('20260409_dinner', 20260409, 'dinner', 2, '잡곡밥');
-INSERT INTO jungle_menu (slot_key, menu_date, meal_type, dish_order, dish_name) VALUES ('20260409_dinner', 20260409, 'dinner', 3, '나초깐풍기');
-INSERT INTO jungle_menu (slot_key, menu_date, meal_type, dish_order, dish_name) VALUES ('20260409_dinner', 20260409, 'dinner', 4, '락교무침');
-INSERT INTO jungle_menu (slot_key, menu_date, meal_type, dish_order, dish_name) VALUES ('20260409_dinner', 20260409, 'dinner', 5, '배추김치');
-
-SELECT dish_order, dish_name FROM jungle_menu WHERE slot_key = '20260409_lunch';
-SELECT dish_order, dish_name FROM jungle_menu WHERE slot_key = '20260409_dinner';
-
-SELECT menu_date, meal_type FROM jungle_menu WHERE dish_name = '깍두기';
-
-DELETE FROM jungle_menu WHERE slot_key = '20260409_dinner';
-
-SELECT dish_order, dish_name FROM jungle_menu WHERE slot_key = '20260409_dinner';
-
-exit
-```
-
-## 테스트
-
-테스트는 네 단계로 나눴다.
-
-| 분류 | 목적 |
+| 경우 | 특징 |
 | --- | --- |
-| Unit Test | 토크나이저, 파서, 스토리지, 실행기 같은 모듈 단위 검증 |
-| Integration Test | tokenizer -> parser -> executor -> storage가 연결돼서 잘 동작하는지 확인 |
-| Functional Test | INSERT, SELECT, DELETE, WHERE 같은 실제 SQL 기능 검증 |
-| Edge Case Test | 중복 PK, 문자열 내 수미표, 존재하지 않는 테이블, 빈 결과 같은 예외 상황 검증  |
+| 인덱스 없는 경우 | 삽입은 단순하지만, 조회 시 모든 레코드를 처음부터 끝까지 확인해야 한다 |
+| 인덱스 있는 경우 | 삽입은 조금 느려지지만, `WHERE id = ?` 조회는 매우 빠르게 처리된다 |
 
-<img width="881" height="370" alt="image" src="https://github.com/user-attachments/assets/fcafb6cd-0f97-450f-932a-7ed9fa6e6912" />
+## 6. B+Tree를 선택한 이유
+B+Tree를 선택한 이유는 단순히 검색이 빠르기 때문만이 아니다.
 
-## 수요 코딩회 작업 비중
-<img width="666" height="448" alt="image" src="https://github.com/user-attachments/assets/802587bc-2688-45fe-a258-80c2f3112552" />
+- key를 정렬된 상태로 유지할 수 있어 exact search와 range search 모두에 유리하다.
+- leaf node를 연결 리스트처럼 이어 둘 수 있어 순차 탐색과 범위 조회로 확장하기 쉽다.
+- 모든 leaf가 같은 depth를 유지하므로 탐색 비용이 안정적이다.
+- 실제 데이터베이스 인덱스 구조로 널리 사용되기 때문에, SQL 처리기와 연동하는 목적에 잘 맞는다.
 
+짧게 비교하면 다음과 같다.
 
-## 최적화 요약
+- 배열이나 선형 탐색은 구현은 단순하지만 데이터가 많아질수록 조회가 느리다.
+- 단순 BST는 균형이 깨지면 성능이 불안정해질 수 있다.
+- 해시 인덱스는 정확한 검색에는 강하지만 범위 조회에는 불리하다.
+- B+Tree는 검색 속도와 정렬 구조를 함께 가져갈 수 있어 데이터베이스 인덱스에 적합하다.
 
-| 항목 |  설명 |
-|------|----------|
-| Tokenizer 캐시 | 동일 SQL 입력 시, 토큰화 결과를 캐시에서 재사용하여 문자열 → 토큰 변환 비용 감소 |
-| 인덱스 기반 조회 | WHERE 조건 시, 인메모리 인덱스를 생성하여 조건에 맞는 row offset 탐색 |
-| Offset 기반 파일 접근 | 전체 파일을 순회하지 않고, 필요한 행만 직접 읽어서 조회 |
+## 7. B+Tree의 핵심 특징
+B+Tree의 핵심은 내부 노드와 리프 노드의 역할이 분리된다는 점이다.
+
+- internal node는 key와 child pointer만 가진다.
+- 실제 데이터 위치는 leaf node에 저장한다.
+- leaf node들은 연결 리스트처럼 이어져 있다.
+- 모든 leaf는 같은 depth에 있다.
+- 탐색 시간은 트리 높이에 비례한다.
+
+`WHERE id = ?` 는 root에서 시작해 적절한 child를 따라 leaf까지 내려가는 방식으로 처리된다.  
+이때 실제 `row_index`는 leaf에서 얻는다.
+
+또 한 가지 중요한 점은, `first_leaf` 같은 시작 포인터는 전체 순차 탐색이나 범위 탐색을 빠르게 시작하기 위한 장치라는 점이다.  
+즉, point lookup인 `WHERE id = ?` 를 대체하는 것이 아니라 range scan에 유리한 보조 구조다.  
+현재 구현은 별도 `first_leaf` 포인터 대신 leaf의 `next` 링크를 유지하고 있으며, 이 연결 구조는 이후 범위 조회 확장에 유리하다.
+
+## 8. 핵심 구현 포인트
+이번 프로젝트에서 실제로 구현한 핵심 포인트는 아래와 같다.
+
+- `INSERT` 시 사용자가 `id`를 직접 넣지 못하게 하고 auto increment id를 부여했다.
+- 새 row를 저장할 때 B+Tree에도 `(id -> row_index)`를 즉시 반영했다.
+- `WHERE id = ?` 조건은 `executor`에서 감지해 index seek로 처리했다.
+- `id`가 아닌 필드는 인덱스를 쓰지 않고 linear scan으로 처리했다.
+- leaf split과 internal split을 구현해 트리 높이가 커져도 검색이 가능하도록 했다.
+- leaf node의 `next` 링크를 유지해 순차 탐색과 range scan 확장 기반을 남겨 두었다.
+
+결국 이 프로젝트의 포인트는 "B+Tree를 구현했다"가 아니라,  
+"SQL 실행 경로 안에 실제 인덱스 분기를 연결했다"는 데 있다.
+
+## 9. 테스트 및 검증
+이 프로젝트는 단순 동작 확인이 아니라, 단위 테스트와 기능 테스트를 나눠 검증했다.
+
+- 단위 테스트: `test_bptree`, `test_table_runtime`, `test_executor`, `test_storage`, `test_benchmark`로 핵심 모듈을 검증했다.
+- 기능 테스트: `tests/test_cases/*.sql`로 기본 `INSERT`, 기본 `SELECT`, `WHERE id`, 일반 `WHERE` 시나리오를 확인했다.
+- edge case 검증: explicit id 삽입 거부, `DELETE` 비지원, 특수 문자열 입력 같은 예외 상황을 점검했다.
+- split 검증: leaf split과 internal split 이후에도 검색 결과가 유지되는지 테스트했다.
+- 성능 테스트: benchmark 모듈로 삽입과 조회 시나리오를 반복 실행해 성능 차이를 확인했다.
+
+발표에서는 다음처럼 정리하면 자연스럽다.  
+"구현이 단순히 돌아가기만 하는지 본 것이 아니라, split 이후 검색 정확성, 인덱스 분기, 예외 처리, 성능 측정까지 나눠 검증했다."
+
+## 10. 한계와 개선 방향
+현재 구현은 B+Tree 인덱스의 효과를 보여주는 메모리 기반 SQL 처리기다.
+
+- 현재는 메모리 기반 구현이라 프로그램이 종료되면 런타임 데이터는 사라진다.
+- 디스크 기반 page 관리나 buffer manager까지는 확장하지 않았다.
+- 인덱스는 현재 `id` 중심이며, secondary index는 아직 구현하지 않았다.
+- `DELETE`는 현재 메모리 런타임 모드에서 지원하지 않는다.
+- 향후에는 secondary index, delete 고도화, range query, 디스크 기반 B+Tree로 확장할 수 있다.
+
+즉 지금 버전은 "인덱스를 붙였을 때 SQL 처리기의 조회 경로가 어떻게 달라지는가"를 보여주는 구현이다.  
+다음 단계에서는 이를 디스크 기반 데이터베이스 구조로 확장하는 것이 자연스러운 발전 방향이다.
